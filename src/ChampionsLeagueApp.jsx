@@ -9,7 +9,7 @@ const ChampionsLeagueApp = () => {
   { team: 'Liverpool', player: 'Daniel Acero' },
   { team: 'Borussia Dortmund', player: 'Miguel Ochoa' },
   { team: 'Chelsea', player: 'Santiago Belmonte' },
-  { team: 'FC Barcelona', player: 'Andres Villamizar' },
+  { team: 'FC Barcelona', player: 'Andrés Villamizar' },
   { team: 'Newcastle United', player: 'Julian Barajas' },
   { team: 'Manchester City', player: 'Santiago Bernal' },
   { team: 'Atlético de Madrid', player: 'Sergio Sanchez' },
@@ -106,8 +106,8 @@ const ChampionsLeagueApp = () => {
   };
 
 // Función para guardar datos en Firebase
-const saveData = async (customData = null) => {
-  const dataToSave = customData || {
+const saveData = async () => {
+  const dataToSave = {
     groups,
     matches,
     predictions,
@@ -130,6 +130,14 @@ const saveData = async (customData = null) => {
     return false; // Indica fallo
   }
 };
+
+  // Función para sincronizar manualmente con Firebase
+  const manualSync = async () => {
+    const success = await saveData();
+    if (success) {
+      alert('✅ Datos sincronizados exitosamente!');
+    }
+  };
 
   // Restablecer sistema completo
   const resetSystem = async () => {
@@ -420,8 +428,11 @@ const saveData = async (customData = null) => {
         : m
     );
     
-    // Recalcular puntos con los datos actualizados
+    setMatches(updatedMatches);
+    
+    // Recalcular puntos INMEDIATAMENTE con los datos actualizados
     const newPoints = {};
+    
     players.forEach(player => {
       newPoints[player] = 0;
     });
@@ -433,49 +444,33 @@ const saveData = async (customData = null) => {
             const pred = predictions[player][match.id];
             let points = 0;
             
-            // Acertar ganador: 3 puntos
+            // 3 puntos por acertar ganador
             if (pred.winner === match.result.winner) {
               points += 3;
             }
             
-            // Acertar primer goleador: 1 punto
+            // 1 punto por acertar primer goleador
             if (pred.firstScorer === match.firstGoalScorer) {
               points += 1;
             }
             
-            // Acertar resultado exacto: 5 puntos
+            // 5 puntos por acertar resultado exacto
             if (pred.score1 === match.result.score1 && pred.score2 === match.result.score2) {
               points += 5;
             }
             
             newPoints[player] = (newPoints[player] || 0) + points;
-            console.log(`📊 ${player}: ${points} puntos en este partido (Total: ${newPoints[player]})`);
           }
         });
       }
     });
     
-    console.log('🎯 Puntos calculados:', newPoints);
-    
-    // Actualizar estados
-    setMatches(updatedMatches);
     setUserPoints(newPoints);
     
-    
-    // Guardar en Firebase con los datos actualizados
-    await saveData({
-      groups,
-      matches: updatedMatches,
-      predictions,
-      userPoints: newPoints,
-      arrivals,
-      goals,
-      votes,
-      activeVoting,
-      votingStartTime
-    });
+    // Guardar en Firebase
+    await saveData();
+    alert('✅ Resultado registrado y puntos calculados exitosamente!');
   };
-
 
   // Recalcular todos los puntos
   const recalculateAllPoints = () => {
@@ -511,6 +506,42 @@ const saveData = async (customData = null) => {
     });
     
     setUserPoints(newPoints);
+  };
+
+
+  // Calcular puntos individuales para un partido específico
+  const calculateMatchPoints = (match, playerName) => {
+    if (!match.result || !predictions[playerName] || !predictions[playerName][match.id]) {
+      return { total: 0, details: {} };
+    }
+    
+    const pred = predictions[playerName][match.id];
+    const details = {
+      winner: false,
+      score: false,
+      firstScorer: false
+    };
+    let total = 0;
+    
+    // 3 puntos por acertar ganador
+    if (pred.winner === match.result.winner) {
+      details.winner = true;
+      total += 3;
+    }
+    
+    // 1 punto por acertar primer goleador
+    if (pred.firstScorer === match.firstGoalScorer) {
+      details.firstScorer = true;
+      total += 1;
+    }
+    
+    // 5 puntos por acertar resultado exacto
+    if (pred.score1 === match.result.score1 && pred.score2 === match.result.score2) {
+      details.score = true;
+      total += 5;
+    }
+    
+    return { total, details };
   };
 
   // Predicción de usuario
@@ -800,6 +831,14 @@ const saveData = async (customData = null) => {
                 <p className="text-sm" style={{ color: '#FFD700' }}>Administrador</p>
               )}
             </div>
+            <button
+              onClick={manualSync}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+              title="Sincronizar con Firebase"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Sync
+            </button>
             <button
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
@@ -1430,17 +1469,79 @@ const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmi
       </div>
 
       {!canEdit && userPrediction ? (
-        <div className="bg-gray-800 p-4 rounded-lg">
-          <p className="text-gray-400 mb-2">Tu predicción:</p>
-          <p className="text-white">
-            <strong style={{ color: '#FFD700' }}>Ganador:</strong> {userPrediction.winner}
-          </p>
-          <p className="text-white">
-            <strong style={{ color: '#FFD700' }}>Resultado:</strong> {userPrediction.score1} - {userPrediction.score2}
-          </p>
-          <p className="text-white">
-            <strong style={{ color: '#FFD700' }}>Primer Gol:</strong> {userPrediction.firstScorer}
-          </p>
+        <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: match.result ? '#FFD700' : '#374151' }}>
+          <p className="text-gray-400 mb-3 font-semibold">Tu predicción:</p>
+          
+          {match.result ? (
+            // Mostrar predicción con resultados
+            <>
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-white">
+                    <strong style={{ color: '#FFD700' }}>Ganador:</strong> {userPrediction.winner}
+                  </p>
+                  <span className={`text-2xl font-bold ${
+                    userPrediction.winner === match.result.winner ? 'text-green-500' : 'text-red-500'
+                  }`}>
+                    {userPrediction.winner === match.result.winner ? '✓' : '✗'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <p className="text-white">
+                    <strong style={{ color: '#FFD700' }}>Resultado:</strong> {userPrediction.score1} - {userPrediction.score2}
+                  </p>
+                  <span className={`text-2xl font-bold ${
+                    (userPrediction.score1 === match.result.score1 && userPrediction.score2 === match.result.score2) 
+                      ? 'text-green-500' : 'text-red-500'
+                  }`}>
+                    {(userPrediction.score1 === match.result.score1 && userPrediction.score2 === match.result.score2) 
+                      ? '✓' : '✗'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <p className="text-white">
+                    <strong style={{ color: '#FFD700' }}>Primer Gol:</strong> {userPrediction.firstScorer}
+                  </p>
+                  <span className={`text-2xl font-bold ${
+                    userPrediction.firstScorer === match.firstGoalScorer ? 'text-green-500' : 'text-red-500'
+                  }`}>
+                    {userPrediction.firstScorer === match.firstGoalScorer ? '✓' : '✗'}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Puntos ganados en este partido */}
+              <div className="mt-4 pt-4 border-t-2" style={{ borderColor: '#FFD700' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-white font-bold">Puntos obtenidos:</span>
+                  <span className="text-3xl font-bold" style={{ color: '#FFD700' }}>
+                    {calculateMatchPoints(match, currentUser).total}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-400 mt-2">
+                  <p>Ganador: {userPrediction.winner === match.result.winner ? '+3' : '0'} pts</p>
+                  <p>Resultado exacto: {(userPrediction.score1 === match.result.score1 && userPrediction.score2 === match.result.score2) ? '+5' : '0'} pts</p>
+                  <p>Primer goleador: {userPrediction.firstScorer === match.firstGoalScorer ? '+1' : '0'} pts</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            // Partido sin resultado aún
+            <>
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Ganador:</strong> {userPrediction.winner}
+              </p>
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Resultado:</strong> {userPrediction.score1} - {userPrediction.score2}
+              </p>
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Primer Gol:</strong> {userPrediction.firstScorer}
+              </p>
+              <p className="text-xs text-gray-400 mt-2 italic">Esperando resultado del partido...</p>
+            </>
+          )}
         </div>
       ) : canEdit ? (
         <div className="space-y-4">
