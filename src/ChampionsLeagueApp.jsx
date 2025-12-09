@@ -895,6 +895,17 @@ const saveData = async () => {
             
             {isAdmin && (
               <button
+                onClick={() => setActiveSection('verpredicciones')}
+                className={`px-6 py-3 font-semibold ${activeSection === 'verpredicciones' ? 'border-b-4' : 'text-gray-400'}`}
+                style={activeSection === 'verpredicciones' ? { color: '#FFD700', borderColor: '#FFD700' } : {}}
+              >
+                <Edit className="inline w-5 h-5 mr-2" />
+                Ver Predicciones
+              </button>
+            )}
+            
+            {isAdmin && (
+              <button
                 onClick={() => setActiveSection('admin')}
                 className={`px-6 py-3 font-semibold ${activeSection === 'admin' ? 'border-b-4' : 'text-gray-400'}`}
                 style={activeSection === 'admin' ? { color: '#FFD700', borderColor: '#FFD700' } : {}}
@@ -935,6 +946,15 @@ const saveData = async () => {
 
         {activeSection === 'resultados' && (
           <ResultsSection matches={matches} />
+        )}
+
+        {activeSection === 'verpredicciones' && isAdmin && (
+          <AllPredictionsSection 
+            matches={matches}
+            predictions={predictions}
+            players={players}
+            calculateMatchPoints={calculateMatchPoints}
+          />
         )}
 
         {activeSection === 'clasificacion' && (
@@ -994,6 +1014,257 @@ const saveData = async () => {
           />
         )}
       </div>
+    </div>
+  );
+};
+
+// Componente para ver TODAS las predicciones (Admin)
+const AllPredictionsSection = ({ matches, predictions, players, calculateMatchPoints }) => {
+  const [viewMode, setViewMode] = useState('all'); // 'all', 'withResult', 'noResult'
+  const [selectedGroup, setSelectedGroup] = useState('all');
+  
+  // Filtrar partidos según el modo de vista
+  let filteredMatches = matches;
+  
+  if (viewMode === 'withResult') {
+    filteredMatches = matches.filter(m => m.result);
+  } else if (viewMode === 'noResult') {
+    filteredMatches = matches.filter(m => !m.result);
+  }
+  
+  // Filtrar por grupo si se selecciona uno
+  if (selectedGroup !== 'all') {
+    filteredMatches = filteredMatches.filter(m => m.group === selectedGroup);
+  }
+  
+  // Obtener grupos únicos
+  const uniqueGroups = [...new Set(matches.map(m => m.group))].filter(Boolean);
+  
+  // Agrupar partidos por grupo
+  const groupedMatches = {};
+  filteredMatches.forEach(match => {
+    const groupKey = match.phase === 'group' ? `Grupo ${match.group}` : 'Eliminatorias';
+    if (!groupedMatches[groupKey]) {
+      groupedMatches[groupKey] = [];
+    }
+    groupedMatches[groupKey].push(match);
+  });
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+          <Edit className="w-8 h-8" style={{ color: '#FFD700' }} />
+          Todas las Predicciones
+        </h2>
+      </div>
+      
+      {/* Filtros */}
+      <div className="bg-gray-900 p-4 rounded-xl border-2" style={{ borderColor: '#FFD700' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Filtro por estado */}
+          <div>
+            <label className="block text-white mb-2 font-semibold">Estado del Partido:</label>
+            <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-800 text-white border-2 border-gray-700 focus:border-yellow-500"
+            >
+              <option value="all">Todos los partidos</option>
+              <option value="withResult">Solo partidos finalizados</option>
+              <option value="noResult">Solo partidos sin resultado</option>
+            </select>
+          </div>
+          
+          {/* Filtro por grupo */}
+          <div>
+            <label className="block text-white mb-2 font-semibold">Grupo/Fase:</label>
+            <select
+              value={selectedGroup}
+              onChange={(e) => setSelectedGroup(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg bg-gray-800 text-white border-2 border-gray-700 focus:border-yellow-500"
+            >
+              <option value="all">Todos los grupos</option>
+              {uniqueGroups.map(group => (
+                <option key={group} value={group}>Grupo {group}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      {/* Resumen */}
+      <div className="bg-gray-900 p-4 rounded-xl">
+        <p className="text-gray-400">
+          Mostrando <span className="text-white font-bold">{filteredMatches.length}</span> partido(s)
+        </p>
+      </div>
+      
+      {/* Partidos agrupados */}
+      {Object.keys(groupedMatches).length === 0 ? (
+        <div className="bg-gray-900 p-8 rounded-xl text-center">
+          <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+          <p className="text-gray-400 text-lg">No hay partidos con estos filtros</p>
+        </div>
+      ) : (
+        Object.entries(groupedMatches).map(([groupName, groupMatches]) => (
+          <div key={groupName} className="space-y-4">
+            <h3 className="text-2xl font-bold text-white mt-8 mb-4 flex items-center gap-2">
+              <Trophy className="w-6 h-6" style={{ color: '#FFD700' }} />
+              {groupName}
+            </h3>
+            
+            {groupMatches.map(match => (
+              <MatchPredictionsCard
+                key={match.id}
+                match={match}
+                predictions={predictions}
+                players={players}
+                calculateMatchPoints={calculateMatchPoints}
+              />
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
+// Componente para mostrar las predicciones de un partido
+const MatchPredictionsCard = ({ match, predictions, players, calculateMatchPoints }) => {
+  const [expanded, setExpanded] = useState(false);
+  
+  // Obtener predicciones de este partido
+  const matchPredictions = {};
+  players.forEach(player => {
+    if (predictions[player] && predictions[player][match.id]) {
+      matchPredictions[player] = predictions[player][match.id];
+    }
+  });
+  
+  const totalPredictions = Object.keys(matchPredictions).length;
+  
+  return (
+    <div className="bg-gray-900 rounded-xl p-6 border-2" style={{ borderColor: match.result ? '#FFD700' : '#374151' }}>
+      {/* Header del partido */}
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <div className="text-sm mb-2" style={{ color: '#FFD700' }}>
+            {match.phase === 'group' ? `Grupo ${match.group}` : 'Eliminatorias'}
+            {match.result && <span className="ml-2 px-2 py-1 bg-green-600 text-white text-xs rounded">FINALIZADO</span>}
+            {!match.result && match.enabled && <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded">ACTIVO</span>}
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="text-center">
+              <p className="text-white font-bold text-xl">{match.team1.team}</p>
+              <p className="text-gray-400 text-sm">{match.team1.player}</p>
+            </div>
+            
+            <div className="text-2xl font-bold mx-4" style={{ color: '#FFD700' }}>
+              {match.result ? `${match.result.score1} - ${match.result.score2}` : 'VS'}
+            </div>
+            
+            <div className="text-center">
+              <p className="text-white font-bold text-xl">{match.team2.team}</p>
+              <p className="text-gray-400 text-sm">{match.team2.player}</p>
+            </div>
+          </div>
+          
+          {match.result && (
+            <div className="mt-2 text-sm text-gray-400">
+              <p><strong style={{ color: '#FFD700' }}>Ganador:</strong> {match.result.winner}</p>
+              <p><strong style={{ color: '#FFD700' }}>Primer Gol:</strong> {match.firstGoalScorer}</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="text-right">
+          <p className="text-gray-400 text-sm">Predicciones:</p>
+          <p className="text-white font-bold text-2xl">{totalPredictions}/{players.length}</p>
+        </div>
+      </div>
+      
+      {/* Botón expandir/colapsar */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
+      >
+        {expanded ? '▲ Ocultar Predicciones' : '▼ Ver Predicciones'}
+        <span className="text-xs text-gray-400">({totalPredictions} usuarios)</span>
+      </button>
+      
+      {/* Lista de predicciones */}
+      {expanded && (
+        <div className="mt-4 space-y-3">
+          {totalPredictions === 0 ? (
+            <div className="text-center text-gray-400 py-4">
+              Ningún usuario ha hecho predicción en este partido
+            </div>
+          ) : (
+            Object.entries(matchPredictions).map(([player, prediction]) => {
+              const points = match.result ? calculateMatchPoints(match, player) : null;
+              
+              return (
+                <div key={player} className="bg-gray-800 p-4 rounded-lg border" style={{ borderColor: match.result ? '#FFD700' : '#374151' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="w-5 h-5" style={{ color: '#FFD700' }} />
+                      <p className="text-white font-bold">{player}</p>
+                    </div>
+                    {match.result && points && (
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400">Puntos obtenidos</p>
+                        <p className="text-2xl font-bold" style={{ color: '#FFD700' }}>{points.total}</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Ganador:</span>
+                      <span className="text-white font-semibold">{prediction.winner}</span>
+                      {match.result && (
+                        <span className={`text-xl font-bold ml-2 ${prediction.winner === match.result.winner ? 'text-green-500' : 'text-red-500'}`}>
+                          {prediction.winner === match.result.winner ? '✓' : '✗'}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Resultado:</span>
+                      <span className="text-white font-semibold">{prediction.score1} - {prediction.score2}</span>
+                      {match.result && (
+                        <span className={`text-xl font-bold ml-2 ${(prediction.score1 === match.result.score1 && prediction.score2 === match.result.score2) ? 'text-green-500' : 'text-red-500'}`}>
+                          {(prediction.score1 === match.result.score1 && prediction.score2 === match.result.score2) ? '✓' : '✗'}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Primer Gol:</span>
+                      <span className="text-white font-semibold">{prediction.firstScorer}</span>
+                      {match.result && (
+                        <span className={`text-xl font-bold ml-2 ${prediction.firstScorer === match.firstGoalScorer ? 'text-green-500' : 'text-red-500'}`}>
+                          {prediction.firstScorer === match.firstGoalScorer ? '✓' : '✗'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {match.result && points && (
+                    <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-400">
+                      <p>Ganador: {prediction.winner === match.result.winner ? '+3' : '0'} pts | 
+                         Resultado: {(prediction.score1 === match.result.score1 && prediction.score2 === match.result.score2) ? '+5' : '0'} pts | 
+                         Goleador: {prediction.firstScorer === match.firstGoalScorer ? '+1' : '0'} pts</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 };
