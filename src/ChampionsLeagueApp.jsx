@@ -569,54 +569,62 @@ const saveData = async (updatedData = {}) => {
     return { total, details };
   };
 
-// Predicción de usuario
-const submitPrediction = async (matchId, winner, score1, score2, firstScorer) => {
-  console.log('🎯 Guardando predicción:', { matchId, winner, score1, score2, firstScorer });
-  console.log('👤 Usuario actual:', currentUser);
-  
-  const match = matches.find(m => m.id === matchId);
-  if (!match) {
-    alert('Partido no encontrado');
-    return;
-  }
-  
-  const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
-  
-  if (timeElapsed > 3) {
-    alert('El tiempo para predecir ha expirado');
-    return;
-  }
-  
-  // Crear copia de predicciones con la nueva predicción
-  const newPredictions = { ...predictions };
-  if (!newPredictions[currentUser]) {
-    newPredictions[currentUser] = {};
-  }
-  
-  newPredictions[currentUser][matchId] = {
-    winner,
-    score1: parseInt(score1),
-    score2: parseInt(score2),
-    firstScorer,
-    timestamp: Date.now()
-  };
-  
-  console.log('📊 Predicciones ANTES de actualizar estado:', JSON.parse(JSON.stringify(predictions)));
-  console.log('📊 Predicciones NUEVAS a guardar:', JSON.parse(JSON.stringify(newPredictions)));
-  
-  // CRÍTICO: Guardar PRIMERO en Firebase, LUEGO actualizar estado local
-  const success = await saveData({ predictions: newPredictions });
-  
-  if (success) {
-    // Solo actualizar estado local si se guardó exitosamente
+  // Predicción de usuario
+  const submitPrediction = async (matchId, winner, score1, score2, firstScorer) => {
+    console.log('🎯 Guardando predicción:', { matchId, winner, score1, score2, firstScorer });
+    console.log('👤 Usuario actual:', currentUser);
+    
+    const match = matches.find(m => m.id === matchId);
+    if (!match) {
+      alert('Partido no encontrado');
+      return;
+    }
+    
+    const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
+    
+    if (timeElapsed > 3) {
+      alert('El tiempo para predecir ha expirado');
+      return;
+    }
+    
+    // Crear copia de predicciones con la nueva predicción
+    const newPredictions = { ...predictions };
+    if (!newPredictions[currentUser]) {
+      newPredictions[currentUser] = {};
+    }
+    
+    newPredictions[currentUser][matchId] = {
+      winner,
+      score1: parseInt(score1),
+      score2: parseInt(score2),
+      firstScorer,
+      timestamp: Date.now()
+    };
+    
+    console.log('📊 Predicciones ANTES de actualizar estado:', JSON.parse(JSON.stringify(predictions)));
+    console.log('📊 Predicciones NUEVAS a guardar:', JSON.parse(JSON.stringify(newPredictions)));
+    
+    // Actualizar estado local
     setPredictions(newPredictions);
-    alert('✅ Predicción guardada exitosamente');
-    console.log('✅ Predicción guardada para', currentUser, 'en partido', matchId);
-  } else {
-    alert('❌ Error al guardar la predicción. Intenta de nuevo.');
-  }
-};
+    
+    // CRÍTICO: Pasar las predicciones NUEVAS directamente a saveData
+    // No confiar en que el estado se actualice inmediatamente
+    const success = await saveData({ predictions: newPredictions });
+    
+    if (success) {
+      alert('✅ Predicción guardada exitosamente');
+      console.log('✅ Predicción guardada para', currentUser, 'en partido', matchId);
+    }
+  };
 
+  // Verificar si puede editar
+  const canEditPrediction = (matchId) => {
+    const match = matches.find(m => m.id === matchId);
+    if (!match || !match.enabledAt) return false;
+    
+    const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
+    return timeElapsed <= 3;
+  };
 
   // Calcular clasificación por grupos
   const calculateGroupStandings = (groupName) => {
@@ -1738,17 +1746,43 @@ const ResultsSection = ({ matches }) => {
   );
 };
 
-// Componente de tarjeta de predicción (VERSIÓN SIMPLIFICADA - SIN EDICIÓN)
+// Componente de tarjeta de predicción (sin cambios significativos)
 const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmit, calculateMatchPoints }) => {
   const [winner, setWinner] = useState('');
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
   const [firstScorer, setFirstScorer] = useState('');
   const [timeLeft, setTimeLeft] = useState(180);
- 
- 
+  const [isEditing, setIsEditing] = useState(false);
+  
+  // Guardar valores originales para poder cancelar
+  const [originalValues, setOriginalValues] = useState({
+    winner: '',
+    score1: '',
+    score2: '',
+    firstScorer: ''
+  });
+
   const userPrediction = predictions[currentUser]?.[match.id];
-  const hasPrediction = !!userPrediction;
+
+  useEffect(() => {
+    if (userPrediction) {
+      const values = {
+        winner: userPrediction.winner,
+        score1: userPrediction.score1,
+        score2: userPrediction.score2,
+        firstScorer: userPrediction.firstScorer
+      };
+      setWinner(values.winner);
+      setScore1(values.score1);
+      setScore2(values.score2);
+      setFirstScorer(values.firstScorer);
+      setOriginalValues(values);
+    } else {
+      // Si no hay predicción, activar modo edición automáticamente
+      setIsEditing(true);
+    }
+  }, [userPrediction]);
 
   useEffect(() => {
     if (!match.enabledAt) return;
@@ -1766,17 +1800,26 @@ const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmi
     return () => clearInterval(interval);
   }, [match.enabledAt]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!winner || !score1 || !score2 || !firstScorer) {
       alert('Debes completar todos los campos');
       return;
     }
-    await onSubmit(match.id, winner, score1, score2, firstScorer);
-    // Limpiar campos después de guardar
-    setWinner('');
-    setScore1('');
-    setScore2('');
-    setFirstScorer('');
+    onSubmit(match.id, winner, score1, score2, firstScorer);
+    setIsEditing(false); // Salir del modo edición después de guardar
+  };
+  
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+  
+  const handleCancel = () => {
+    // Restaurar valores originales
+    setWinner(originalValues.winner);
+    setScore1(originalValues.score1);
+    setScore2(originalValues.score2);
+    setFirstScorer(originalValues.firstScorer);
+    setIsEditing(false);
   };
 
   const minutes = Math.floor(timeLeft / 60);
@@ -1788,7 +1831,7 @@ const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmi
         <div className="text-sm" style={{ color: '#FFD700' }}>
           {match.phase === 'group' ? `Grupo ${match.group}` : 'Eliminatorias'}
         </div>
-        {canEdit && !hasPrediction && (
+        {canEdit && (
           <div className="flex items-center gap-2" style={{ color: '#FFD700' }}>
             <Clock className="w-5 h-5" />
             <span className="font-bold text-lg">
@@ -1812,12 +1855,10 @@ const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmi
         </div>
       </div>
 
-      {/* CASO 1: Ya tiene predicción guardada - SOLO LECTURA */}
-      {hasPrediction ? (
+      {/* CASO 1: Partido finalizado (no se puede editar) - Muestra resultados con checkmarks */}
+      {!canEdit && userPrediction ? (
         <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: match.result ? '#FFD700' : '#374151' }}>
-          <p className="text-gray-400 mb-3 font-semibold flex items-center gap-2">
-            <span className="text-green-500">✓</span> Tu predicción guardada:
-          </p>
+          <p className="text-gray-400 mb-3 font-semibold">Tu predicción:</p>
           
           {match.result ? (
             // Mostrar predicción con resultados
@@ -1877,27 +1918,62 @@ const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmi
           ) : (
             // Partido sin resultado aún
             <>
-              <div className="space-y-2">
-                <p className="text-white">
-                  <strong style={{ color: '#FFD700' }}>Ganador:</strong> {userPrediction.winner}
-                </p>
-                <p className="text-white">
-                  <strong style={{ color: '#FFD700' }}>Resultado:</strong> {userPrediction.score1} - {userPrediction.score2}
-                </p>
-                <p className="text-white">
-                  <strong style={{ color: '#FFD700' }}>Primer Gol:</strong> {userPrediction.firstScorer}
-                </p>
-              </div>
-              <p className="text-xs text-gray-400 mt-3 italic flex items-center gap-2">
-                <Clock className="w-3 h-3" />
-                Esperando resultado del partido...
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Ganador:</strong> {userPrediction.winner}
               </p>
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Resultado:</strong> {userPrediction.score1} - {userPrediction.score2}
+              </p>
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Primer Gol:</strong> {userPrediction.firstScorer}
+              </p>
+              <p className="text-xs text-gray-400 mt-2 italic">Esperando resultado del partido...</p>
             </>
           )}
         </div>
       
-      /* CASO 2: Puede predecir - FORMULARIO */
-      ) : canEdit ? (
+      /* CASO 2: Tiene predicción guardada pero puede editar y NO está editando - Solo lectura con botón Editar */
+      ) : canEdit && userPrediction && !isEditing ? (
+        <div className="space-y-4">
+          <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: '#FFD700' }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-gray-400 font-semibold">Tu predicción guardada:</p>
+              <button
+                onClick={handleEdit}
+                className="px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all hover:scale-105"
+                style={{ 
+                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                  color: '#05080F'
+                }}
+              >
+                <Edit className="w-4 h-4" />
+                Editar
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Ganador:</strong> {winner}
+              </p>
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Resultado:</strong> {score1} - {score2}
+              </p>
+              <p className="text-white">
+                <strong style={{ color: '#FFD700' }}>Primer Gol:</strong> {firstScorer}
+              </p>
+            </div>
+            
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-xs text-gray-400 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Tiempo restante: {minutes}:{seconds.toString().padStart(2, '0')}
+              </p>
+            </div>
+          </div>
+        </div>
+      
+      /* CASO 3: Modo edición activo O no tiene predicción aún - Formulario */
+      ) : canEdit && isEditing ? (
         <div className="space-y-4">
           <div>
             <label className="block text-white mb-2 font-semibold">¿Quién gana?</label>
@@ -1978,22 +2054,41 @@ const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmi
             </select>
           </div>
 
-          <button
-            onClick={handleSubmit}
-            className="w-full py-3 rounded-lg font-bold text-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
-            style={{ 
-              background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-              color: '#05080F'
-            }}
-          >
-            <Save className="w-5 h-5" />
-            GUARDAR PREDICCIÓN
-          </button>
-          
-          <p className="text-xs text-gray-400 text-center flex items-center justify-center gap-2">
-            <AlertTriangle className="w-4 h-4" />
-            Una vez guardada, no podrás modificar tu predicción
-          </p>
+          {/* Botones de acción */}
+          {userPrediction ? (
+            // Si ya tiene predicción: Guardar y Cancelar
+            <div className="flex gap-3">
+              <button
+                onClick={handleSubmit}
+                className="flex-1 py-3 rounded-lg font-bold text-lg transition-all hover:scale-105"
+                style={{ 
+                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                  color: '#05080F'
+                }}
+              >
+                <Save className="w-5 h-5 inline mr-2" />
+                GUARDAR CAMBIOS
+              </button>
+              <button
+                onClick={handleCancel}
+                className="flex-1 py-3 rounded-lg font-bold text-lg bg-gray-700 text-white hover:bg-gray-600 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            // Si es primera predicción: Solo Guardar
+            <button
+              onClick={handleSubmit}
+              className="w-full py-3 rounded-lg font-bold text-lg transition-all hover:scale-105"
+              style={{ 
+                background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                color: '#05080F'
+              }}
+            >
+              GUARDAR PREDICCIÓN
+            </button>
+          )}
         </div>
       ) : (
         <div className="text-center text-gray-400 py-4">
