@@ -9,7 +9,7 @@ const ChampionsLeagueApp = () => {
   { team: 'Liverpool', player: 'Daniel Acero' },
   { team: 'Borussia Dortmund', player: 'Miguel Ochoa' },
   { team: 'Chelsea', player: 'Santiago Belmonte' },
-  { team: 'FC Barcelona', player: 'FC Barcelona' },
+  { team: 'FC Barcelona', player: 'Andres Villamizar' },
   { team: 'Newcastle United', player: 'Julian Barajas' },
   { team: 'Manchester City', player: 'Santiago Bernal' },
   { team: 'Atlético de Madrid', player: 'Sergio Sanchez' },
