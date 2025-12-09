@@ -916,6 +916,7 @@ const saveData = async () => {
             predictions={predictions}
             canEditPrediction={canEditPrediction}
             submitPrediction={submitPrediction}
+            calculateMatchPoints={calculateMatchPoints}
           />
         )}
 
@@ -998,27 +999,63 @@ const saveData = async () => {
 };
 
 // Componente de sección de predicciones
-const PredictionsSection = ({ matches, currentUser, predictions, canEditPrediction, submitPrediction }) => {
+const PredictionsSection = ({ matches, currentUser, predictions, canEditPrediction, submitPrediction, calculateMatchPoints }) => {
+  // Separar partidos activos y terminados
+  const activeMatches = matches.filter(m => m.enabled && !m.result);
+  const finishedMatches = matches.filter(m => m.result && predictions[currentUser] && predictions[currentUser][m.id]);
+  
   return (
-    <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-white mb-6">Partidos Disponibles</h2>
-      
-      {matches.filter(m => m.enabled && !m.result).length === 0 ? (
-        <div className="bg-gray-900 p-8 rounded-xl text-center">
-          <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-          <p className="text-gray-400 text-lg">No hay partidos disponibles para predecir</p>
+    <div className="space-y-8">
+      {/* Partidos Activos */}
+      <div className="space-y-4">
+        <h2 className="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+          <Calendar className="w-8 h-8" style={{ color: '#FFD700' }} />
+          Partidos Disponibles para Predecir
+        </h2>
+        
+        {activeMatches.length === 0 ? (
+          <div className="bg-gray-900 p-8 rounded-xl text-center">
+            <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+            <p className="text-gray-400 text-lg">No hay partidos disponibles para predecir</p>
+          </div>
+        ) : (
+          activeMatches.map(match => (
+            <MatchPredictionCard
+              key={match.id}
+              match={match}
+              currentUser={currentUser}
+              predictions={predictions}
+              canEdit={canEditPrediction(match.id)}
+              onSubmit={submitPrediction}
+              calculateMatchPoints={calculateMatchPoints}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Partidos Terminados */}
+      {finishedMatches.length > 0 && (
+        <div className="space-y-4 mt-12">
+          <h2 className="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+            <Trophy className="w-8 h-8" style={{ color: '#FFD700' }} />
+            Partidos Finalizados - Tus Resultados
+          </h2>
+          <p className="text-gray-400 mb-4">
+            Aquí puedes ver cómo te fue en los partidos que ya terminaron
+          </p>
+          
+          {finishedMatches.map(match => (
+            <MatchPredictionCard
+              key={match.id}
+              match={match}
+              currentUser={currentUser}
+              predictions={predictions}
+              canEdit={false}
+              onSubmit={submitPrediction}
+              calculateMatchPoints={calculateMatchPoints}
+            />
+          ))}
         </div>
-      ) : (
-        matches.filter(m => m.enabled && !m.result).map(match => (
-          <MatchPredictionCard
-            key={match.id}
-            match={match}
-            currentUser={currentUser}
-            predictions={predictions}
-            canEdit={canEditPrediction(match.id)}
-            onSubmit={submitPrediction}
-          />
-        ))
       )}
     </div>
   );
@@ -1393,7 +1430,7 @@ const ResultsSection = ({ matches }) => {
 };
 
 // Componente de tarjeta de predicción (sin cambios significativos)
-const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmit }) => {
+const MatchPredictionCard = ({ match, currentUser, predictions, canEdit, onSubmit, calculateMatchPoints }) => {
   const [winner, setWinner] = useState('');
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
