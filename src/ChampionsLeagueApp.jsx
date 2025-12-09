@@ -106,8 +106,8 @@ const ChampionsLeagueApp = () => {
   };
 
 // Función para guardar datos en Firebase
-const saveData = async () => {
-  const dataToSave = {
+const saveData = async (customData = null) => {
+  const dataToSave = customData || {
     groups,
     matches,
     predictions,
@@ -408,7 +408,8 @@ const saveData = async () => {
 
   // Registrar resultado del partido
   const registerResult = async (matchId, winner, score1, score2, firstScorer) => {
-    setMatches(matches.map(m => 
+    // Actualizar el partido con el resultado
+    const updatedMatches = matches.map(m => 
       m.id === matchId 
         ? { 
             ...m, 
@@ -417,11 +418,64 @@ const saveData = async () => {
             firstGoalScorer: firstScorer
           }
         : m
-    ));
+    );
     
-    recalculateAllPoints();
-    await saveData();
+    // Recalcular puntos con los datos actualizados
+    const newPoints = {};
+    players.forEach(player => {
+      newPoints[player] = 0;
+    });
+    
+    updatedMatches.forEach(match => {
+      if (match.result) {
+        Object.keys(predictions).forEach(player => {
+          if (predictions[player] && predictions[player][match.id]) {
+            const pred = predictions[player][match.id];
+            let points = 0;
+            
+            // Acertar ganador: 3 puntos
+            if (pred.winner === match.result.winner) {
+              points += 3;
+            }
+            
+            // Acertar primer goleador: 1 punto
+            if (pred.firstScorer === match.firstGoalScorer) {
+              points += 1;
+            }
+            
+            // Acertar resultado exacto: 5 puntos
+            if (pred.score1 === match.result.score1 && pred.score2 === match.result.score2) {
+              points += 5;
+            }
+            
+            newPoints[player] = (newPoints[player] || 0) + points;
+            console.log(`📊 ${player}: ${points} puntos en este partido (Total: ${newPoints[player]})`);
+          }
+        });
+      }
+    });
+    
+    console.log('🎯 Puntos calculados:', newPoints);
+    
+    // Actualizar estados
+    setMatches(updatedMatches);
+    setUserPoints(newPoints);
+    
+    
+    // Guardar en Firebase con los datos actualizados
+    await saveData({
+      groups,
+      matches: updatedMatches,
+      predictions,
+      userPoints: newPoints,
+      arrivals,
+      goals,
+      votes,
+      activeVoting,
+      votingStartTime
+    });
   };
+
 
   // Recalcular todos los puntos
   const recalculateAllPoints = () => {
