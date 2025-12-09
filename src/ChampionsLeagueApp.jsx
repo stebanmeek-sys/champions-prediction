@@ -105,29 +105,31 @@ const ChampionsLeagueApp = () => {
     });
   };
 
-  // Función para guardar datos en Firebase
-  const saveData = async () => {
-    const dataToSave = {
-      groups,
-      matches,
-      predictions,
-      userPoints,
-      arrivals,
-      goals,
-      votes,
-      activeVoting,
-      votingStartTime
-    };
-    
-    try {
-      const dataRef = ref(database, 'championsData');
-      await set(dataRef, dataToSave);
-      console.log('Datos guardados en Firebase');
-    } catch (error) {
-      console.error('Error al guardar datos:', error);
-      alert('Error al guardar datos. Verifica tu conexión.');
-    }
+// Función para guardar datos en Firebase
+const saveData = async () => {
+  const dataToSave = {
+    groups,
+    matches,
+    predictions,
+    userPoints,
+    arrivals,
+    goals,
+    votes,
+    activeVoting,
+    votingStartTime
   };
+  
+  try {
+    const dataRef = ref(database, 'championsData');
+    await set(dataRef, dataToSave);
+    console.log('✅ Datos guardados en Firebase');
+    return true; // Indica éxito
+  } catch (error) {
+    console.error('❌ Error al guardar datos:', error);
+    alert('Error al guardar. Intenta de nuevo.');
+    return false; // Indica fallo
+  }
+};
 
   // Restablecer sistema completo
   const resetSystem = () => {
@@ -140,7 +142,7 @@ const ChampionsLeagueApp = () => {
     setVotes({});
     setActiveVoting(null);
     setShowResetConfirm(false);
-    saveData();
+    await saveData();
     alert('Sistema restablecido exitosamente');
   };
 
@@ -156,7 +158,7 @@ const ChampionsLeagueApp = () => {
     setArrivals(newArrivals);
     setSelectedPlayerForArrival('');
     setArrivalTime('');
-    saveData();
+    await saveData();
     alert('Hora de llegada registrada exitosamente');
   };
 
@@ -174,34 +176,34 @@ const ChampionsLeagueApp = () => {
     
     setGoals([...goals, newGoal]);
     setNewGoalDescription('');
-    saveData();
+    await saveData();
     alert('Gol agregado exitosamente');
   };
 
   const updateGoal = (goalId, newDescription) => {
     setGoals(goals.map(g => g.id === goalId ? { ...g, description: newDescription } : g));
     setEditingGoal(null);
-    saveData();
+    await saveData();
     alert('Gol actualizado exitosamente');
   };
 
   const deleteGoal = (goalId) => {
     setGoals(goals.filter(g => g.id !== goalId));
-    saveData();
+    await saveData();
   };
 
   // Habilitar votación
   const enableVoting = (votingType) => {
     setActiveVoting(votingType);
     setVotingStartTime(Date.now());
-    saveData();
+    await saveData();
   };
 
   // Deshabilitar votación
   const disableVoting = () => {
     setActiveVoting(null);
     setVotingStartTime(null);
-    saveData();
+    await saveData();
   };
 
   // Verificar si puede votar
@@ -225,7 +227,7 @@ const ChampionsLeagueApp = () => {
     
     newVotes[currentUser][votingType] = voteData;
     setVotes(newVotes);
-    saveData();
+    await saveData();
     alert('Voto registrado exitosamente');
   };
 
@@ -341,7 +343,7 @@ const ChampionsLeagueApp = () => {
     
     setNewGroupName('');
     setSelectedTeamsForGroup([]);
-    saveData();
+    await saveData();
     alert(`Grupo ${newGroupName} creado con ${groupMatches.length} partidos generados`);
   };
 
@@ -359,7 +361,7 @@ const ChampionsLeagueApp = () => {
     setGroups(newGroups);
     
     setMatches(matches.filter(m => m.group !== groupName));
-    saveData();
+    await saveData();
   };
 
   // Crear partido manual
@@ -377,7 +379,7 @@ const ChampionsLeagueApp = () => {
     };
     
     setMatches([...matches, newMatch]);
-    saveData();
+    await saveData();
   };
 
   // Habilitar partido
@@ -387,7 +389,7 @@ const ChampionsLeagueApp = () => {
         ? { ...m, enabled: true, enabledAt: Date.now() }
         : m
     ));
-    saveData();
+    await saveData();
   };
 
   // Eliminar partido
@@ -401,7 +403,7 @@ const ChampionsLeagueApp = () => {
       }
     });
     setPredictions(newPredictions);
-    saveData();
+    await saveData();
   };
 
   // Registrar resultado del partido
@@ -418,7 +420,7 @@ const ChampionsLeagueApp = () => {
     ));
     
     recalculateAllPoints();
-    saveData();
+    await saveData();
   };
 
   // Recalcular todos los puntos
@@ -480,7 +482,7 @@ const ChampionsLeagueApp = () => {
     };
     
     setPredictions(newPredictions);
-    saveData();
+    await saveData();
     alert('Predicción guardada exitosamente');
   };
 
