@@ -91,6 +91,13 @@ const ChampionsLeagueApp = () => {
     onValue(dataRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
+        console.log('📥 Cargando datos desde Firebase...');
+        console.log('📊 Total de predicciones cargadas:', Object.keys(data.predictions || {}).length);
+        Object.keys(data.predictions || {}).forEach(player => {
+          const predCount = Object.keys(data.predictions[player] || {}).length;
+          console.log(`  ${player}: ${predCount} predicción(es)`);
+        });
+        
         setGroups(data.groups || {});
         setMatches(data.matches || []);
         setPredictions(data.predictions || {});
@@ -100,7 +107,7 @@ const ChampionsLeagueApp = () => {
         setVotes(data.votes || {});
         setActiveVoting(data.activeVoting || null);
         setVotingStartTime(data.votingStartTime || null);
-        console.log('Datos cargados desde Firebase');
+        console.log('✅ Datos cargados exitosamente desde Firebase');
       }
     });
   };
@@ -119,10 +126,17 @@ const saveData = async () => {
     votingStartTime
   };
   
+  console.log('💾 Guardando en Firebase...');
+  console.log('📊 Total de predicciones guardadas:', Object.keys(predictions).length);
+  Object.keys(predictions).forEach(player => {
+    const predCount = Object.keys(predictions[player] || {}).length;
+    console.log(`  ${player}: ${predCount} predicción(es)`);
+  });
+  
   try {
     const dataRef = ref(database, 'championsData');
     await set(dataRef, dataToSave);
-    console.log('✅ Datos guardados en Firebase');
+    console.log('✅ Datos guardados en Firebase exitosamente');
     return true; // Indica éxito
   } catch (error) {
     console.error('❌ Error al guardar datos:', error);
@@ -416,6 +430,9 @@ const saveData = async () => {
 
   // Registrar resultado del partido
   const registerResult = async (matchId, winner, score1, score2, firstScorer) => {
+    console.log('🔍 DEBUG: Registrando resultado del partido', matchId);
+    console.log('📊 Predicciones ANTES de registrar:', JSON.parse(JSON.stringify(predictions)));
+    
     // Actualizar el partido con el resultado
     const updatedMatches = matches.map(m => 
       m.id === matchId 
@@ -429,6 +446,8 @@ const saveData = async () => {
     );
     
     setMatches(updatedMatches);
+    
+    console.log('🎯 Partido actualizado:', updatedMatches.find(m => m.id === matchId));
     
     // Recalcular puntos INMEDIATAMENTE con los datos actualizados
     const newPoints = {};
@@ -465,7 +484,12 @@ const saveData = async () => {
       }
     });
     
+    console.log('💰 Nuevos puntos calculados:', newPoints);
+    
     setUserPoints(newPoints);
+    
+    console.log('📊 Predicciones DESPUÉS de registrar:', JSON.parse(JSON.stringify(predictions)));
+    console.log('⚠️ IMPORTANTE: Las predicciones NO deberían cambiar entre ANTES y DESPUÉS');
     
     // Guardar en Firebase
     await saveData();
@@ -807,7 +831,7 @@ const saveData = async () => {
             <Trophy className="w-10 h-10" style={{ color: '#FFD700' }} />
             <div>
               <h1 className="text-2xl font-bold" style={{ color: '#FFD700' }}>CHAMPIONS LEAGUE</h1>
-              <p className="text-sm text-gray-400">Predicciones 2025</p>
+              <p className="text-sm text-gray-400">Predicciones 2024</p>
             </div>
           </div>
           
