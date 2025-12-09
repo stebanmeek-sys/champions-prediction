@@ -132,7 +132,7 @@ const saveData = async () => {
 };
 
   // Restablecer sistema completo
-  const resetSystem = () => {
+  const resetSystem = async () => {
     setGroups({});
     setMatches([]);
     setPredictions({});
@@ -147,7 +147,7 @@ const saveData = async () => {
   };
 
   // Registrar hora de llegada
-  const registerArrival = () => {
+  const registerArrival = async () => {
     if (!selectedPlayerForArrival || !arrivalTime) {
       alert('Selecciona un jugador e ingresa la hora de llegada');
       return;
@@ -163,7 +163,7 @@ const saveData = async () => {
   };
 
   // Gestión de goles
-  const addGoal = () => {
+  const addGoal = async () => {
     if (!newGoalDescription.trim()) {
       alert('Debes ingresar una descripción del gol');
       return;
@@ -180,27 +180,27 @@ const saveData = async () => {
     alert('Gol agregado exitosamente');
   };
 
-  const updateGoal = (goalId, newDescription) => {
+  const updateGoal = async (goalId, newDescription) => {
     setGoals(goals.map(g => g.id === goalId ? { ...g, description: newDescription } : g));
     setEditingGoal(null);
     await saveData();
     alert('Gol actualizado exitosamente');
   };
 
-  const deleteGoal = (goalId) => {
+  const deleteGoal = async (goalId) => {
     setGoals(goals.filter(g => g.id !== goalId));
     await saveData();
   };
 
   // Habilitar votación
-  const enableVoting = (votingType) => {
+  const enableVoting = async (votingType) => {
     setActiveVoting(votingType);
     setVotingStartTime(Date.now());
     await saveData();
   };
 
   // Deshabilitar votación
-  const disableVoting = () => {
+  const disableVoting = async () => {
     setActiveVoting(null);
     setVotingStartTime(null);
     await saveData();
@@ -214,7 +214,7 @@ const saveData = async () => {
   };
 
   // Enviar voto
-  const submitVote = (votingType, voteData) => {
+  const submitVote = async (votingType, voteData) => {
     if (!canVote()) {
       alert('El tiempo para votar ha expirado');
       return;
@@ -322,7 +322,7 @@ const saveData = async () => {
   };
 
   // Crear grupo
-  const createGroup = () => {
+  const createGroup = async () => {
     if (!newGroupName || selectedTeamsForGroup.length === 0) {
       alert('Debes ingresar un nombre de grupo y seleccionar equipos');
       return;
@@ -355,7 +355,7 @@ const saveData = async () => {
     }
   };
 
-  const deleteGroup = (groupName) => {
+  const deleteGroup = async (groupName) => {
     const newGroups = { ...groups };
     delete newGroups[groupName];
     setGroups(newGroups);
@@ -365,7 +365,7 @@ const saveData = async () => {
   };
 
   // Crear partido manual
-  const createMatch = (group, team1, team2, phase = 'group') => {
+  const createMatch = async (group, team1, team2, phase = 'group') => {
     const newMatch = {
       id: Date.now(),
       group,
@@ -383,7 +383,7 @@ const saveData = async () => {
   };
 
   // Habilitar partido
-  const enableMatch = (matchId) => {
+  const enableMatch = async (matchId) => {
     setMatches(matches.map(m => 
       m.id === matchId 
         ? { ...m, enabled: true, enabledAt: Date.now() }
@@ -393,7 +393,7 @@ const saveData = async () => {
   };
 
   // Eliminar partido
-  const deleteMatch = (matchId) => {
+  const deleteMatch = async (matchId) => {
     setMatches(matches.filter(m => m.id !== matchId));
     
     const newPredictions = { ...predictions };
@@ -407,7 +407,7 @@ const saveData = async () => {
   };
 
   // Registrar resultado del partido
-  const registerResult = (matchId, winner, score1, score2, firstScorer) => {
+  const registerResult = async (matchId, winner, score1, score2, firstScorer) => {
     setMatches(matches.map(m => 
       m.id === matchId 
         ? { 
@@ -460,7 +460,7 @@ const saveData = async () => {
   };
 
   // Predicción de usuario
-  const submitPrediction = (matchId, winner, score1, score2, firstScorer) => {
+  const submitPrediction = async (matchId, winner, score1, score2, firstScorer) => {
     const match = matches.find(m => m.id === matchId);
     const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
     
