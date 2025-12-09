@@ -113,35 +113,36 @@ const ChampionsLeagueApp = () => {
   };
 
 // Función para guardar datos en Firebase
-const saveData = async () => {
+const saveData = async (updatedData = {}) => {
+  // CRÍTICO: Usar datos actualizados si se proveen, sino usar estado actual
   const dataToSave = {
-    groups,
-    matches,
-    predictions,
-    userPoints,
-    arrivals,
-    goals,
-    votes,
-    activeVoting,
-    votingStartTime
+    groups: updatedData.groups !== undefined ? updatedData.groups : groups,
+    matches: updatedData.matches !== undefined ? updatedData.matches : matches,
+    predictions: updatedData.predictions !== undefined ? updatedData.predictions : predictions,
+    userPoints: updatedData.userPoints !== undefined ? updatedData.userPoints : userPoints,
+    arrivals: updatedData.arrivals !== undefined ? updatedData.arrivals : arrivals,
+    goals: updatedData.goals !== undefined ? updatedData.goals : goals,
+    votes: updatedData.votes !== undefined ? updatedData.votes : votes,
+    activeVoting: updatedData.activeVoting !== undefined ? updatedData.activeVoting : activeVoting,
+    votingStartTime: updatedData.votingStartTime !== undefined ? updatedData.votingStartTime : votingStartTime
   };
   
   console.log('💾 Guardando en Firebase...');
-  console.log('📊 Total de predicciones guardadas:', Object.keys(predictions).length);
-  Object.keys(predictions).forEach(player => {
-    const predCount = Object.keys(predictions[player] || {}).length;
-    console.log(`  ${player}: ${predCount} predicción(es)`);
+  console.log('📊 Total de predicciones a guardar:', Object.keys(dataToSave.predictions).length);
+  Object.keys(dataToSave.predictions).forEach(player => {
+    const predCount = Object.keys(dataToSave.predictions[player] || {}).length;
+    console.log(`  ✅ ${player}: ${predCount} predicción(es)`);
   });
   
   try {
     const dataRef = ref(database, 'championsData');
     await set(dataRef, dataToSave);
     console.log('✅ Datos guardados en Firebase exitosamente');
-    return true; // Indica éxito
+    return true;
   } catch (error) {
     console.error('❌ Error al guardar datos:', error);
     alert('Error al guardar. Intenta de nuevo.');
-    return false; // Indica fallo
+    return false;
   }
 };
 
@@ -491,8 +492,8 @@ const saveData = async () => {
     console.log('📊 Predicciones DESPUÉS de registrar:', JSON.parse(JSON.stringify(predictions)));
     console.log('⚠️ IMPORTANTE: Las predicciones NO deberían cambiar entre ANTES y DESPUÉS');
     
-    // Guardar en Firebase
-    await saveData();
+    // CRÍTICO: Pasar datos actualizados a saveData
+    await saveData({ matches: updatedMatches, userPoints: newPoints });
     alert('✅ Resultado registrado y puntos calculados exitosamente!');
   };
 
@@ -570,7 +571,15 @@ const saveData = async () => {
 
   // Predicción de usuario
   const submitPrediction = async (matchId, winner, score1, score2, firstScorer) => {
+    console.log('🎯 Guardando predicción:', { matchId, winner, score1, score2, firstScorer });
+    console.log('👤 Usuario actual:', currentUser);
+    
     const match = matches.find(m => m.id === matchId);
+    if (!match) {
+      alert('Partido no encontrado');
+      return;
+    }
+    
     const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
     
     if (timeElapsed > 3) {
@@ -578,6 +587,7 @@ const saveData = async () => {
       return;
     }
     
+    // Crear copia de predicciones con la nueva predicción
     const newPredictions = { ...predictions };
     if (!newPredictions[currentUser]) {
       newPredictions[currentUser] = {};
@@ -587,12 +597,24 @@ const saveData = async () => {
       winner,
       score1: parseInt(score1),
       score2: parseInt(score2),
-      firstScorer
+      firstScorer,
+      timestamp: Date.now()
     };
     
+    console.log('📊 Predicciones ANTES de actualizar estado:', JSON.parse(JSON.stringify(predictions)));
+    console.log('📊 Predicciones NUEVAS a guardar:', JSON.parse(JSON.stringify(newPredictions)));
+    
+    // Actualizar estado local
     setPredictions(newPredictions);
-    await saveData();
-    alert('Predicción guardada exitosamente');
+    
+    // CRÍTICO: Pasar las predicciones NUEVAS directamente a saveData
+    // No confiar en que el estado se actualice inmediatamente
+    const success = await saveData({ predictions: newPredictions });
+    
+    if (success) {
+      alert('✅ Predicción guardada exitosamente');
+      console.log('✅ Predicción guardada para', currentUser, 'en partido', matchId);
+    }
   };
 
   // Verificar si puede editar
@@ -831,7 +853,7 @@ const saveData = async () => {
             <Trophy className="w-10 h-10" style={{ color: '#FFD700' }} />
             <div>
               <h1 className="text-2xl font-bold" style={{ color: '#FFD700' }}>CHAMPIONS LEAGUE</h1>
-              <p className="text-sm text-gray-400">Predicciones 2024</p>
+              <p className="text-sm text-gray-400">Predicciones 2025</p>
             </div>
           </div>
           
