@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, Calendar, Award, Lock, Clock, Edit, Trash2, Plus, Save, ChevronDown, RefreshCw, AlertTriangle, Timer, Vote, Star, Smile, UserCheck, Zap } , Eye, EyeOff } from 'lucide-react';
+import { Trophy, Users, Calendar, Award, Lock, Clock, Edit, Trash2, Plus, Save, ChevronDown, RefreshCw, AlertTriangle, Timer, Vote, Star, Smile, UserCheck, Zap } from 'lucide-react';
 import { db } from './firebase';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const ChampionsLeagueApp = () => {
   // Datos iniciales de equipos y participantes
@@ -44,15 +44,6 @@ const ChampionsLeagueApp = () => {
   const [predictions, setPredictions] = useState({});
   const [userPoints, setUserPoints] = useState({});
   const [arrivals, setArrivals] = useState({});
-
-  // Estados de visibilidad (NUEVO)
-  const [visibility, setVisibility] = useState({
-    groups: true,
-    predictions: false,
-    results: false,
-    standings: false
-  });
-  
   
   // Estados de votaciones
   const [goals, setGoals] = useState([]);
@@ -68,10 +59,19 @@ const ChampionsLeagueApp = () => {
   const [editingMatch, setEditingMatch] = useState(null);
   const [selectedPlayerForArrival, setSelectedPlayerForArrival] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
+  
+  // Estados de visibilidad (controlados por admin)
+  const [visibility, setVisibility] = useState({
+    groups: true,
+    predictions: false,
+    results: false,
+    allPredictions: false,
+    standings: false
+  });
 
   // Cargar datos al iniciar
   useEffect(() => {
-    loadAllData(); loadVisibilitySettings();
+    loadData();
   }, []);
 
   // Inicializar sección correcta según el tipo de usuario
@@ -92,158 +92,125 @@ const ChampionsLeagueApp = () => {
     return assigned;
   };
 
-  // Función para actualizar visibilidad (SOLO ADMIN)
-  const updateVisibility = async (key, value) => {
-    if (!isAdmin) return;
+  // Función para cargar datos desde Firebase
+  const loadData = () => {
+    console.log('📥 Iniciando carga de datos desde Firestore...');
     
-    try {
-      const newVisibility = { ...visibility, [key]: value };
-      await setDoc(doc(db, 'settings', 'visibility'), newVisibility, { merge: true });
-      setVisibility(newVisibility);
-      console.log('✅ Visibilidad actualizada:', key, value);
-    } catch (error) {
-      console.error('❌ Error al actualizar visibilidad:', error);
-      alert('Error al actualizar visibilidad');
-    }
-  };
-
-
-  // Función para cargar todos los datos desde Firestore
-  const loadAllData = async () => {
-    console.log('📥 Cargando datos desde Firestore...');
+    // Listener para datos principales
+    const mainDocRef = doc(db, 'championsData', 'main');
+    const unsubscribeMain = onSnapshot(mainDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        console.log('📊 Datos principales cargados');
+        
+        setGroups(data.groups || {});
+        setMatches(data.matches || []);
+        setUserPoints(data.userPoints || {});
+        setArrivals(data.arrivals || {});
+        setGoals(data.goals || []);
+        setVotes(data.votes || {});
+        setActiveVoting(data.activeVoting || null);
+        setVotingStartTime(data.votingStartTime || null);
+      }
+    }, (error) => {
+      console.error('❌ Error al cargar datos principales:', error);
+    });
     
-    try {
-      // Cargar grupos
-      const groupsSnapshot = await getDocs(collection(db, 'groups'));
-      const groupsData = {};
-      groupsSnapshot.forEach(doc => {
-        groupsData[doc.id] = doc.data().teams || [];
-      });
-      setGroups(groupsData);
-      console.log('✅ Grupos cargados:', Object.keys(groupsData).length);
-
-      // Cargar partidos
-      const matchesSnapshot = await getDocs(collection(db, 'matches'));
-      const matchesData = [];
-      matchesSnapshot.forEach(doc => {
-        matchesData.push({ ...doc.data(), id: doc.id });
-      });
-      setMatches(matchesData);
-      console.log('✅ Partidos cargados:', matchesData.length);
-
-      // Cargar predicciones
-      const predictionsSnapshot = await getDocs(collection(db, 'predictions'));
-      const predictionsData = {};
-      predictionsSnapshot.forEach(doc => {
-        const [userId, matchId] = doc.id.split('_');
-        if (!predictionsData[userId]) {
-          predictionsData[userId] = {};
-        }
-        predictionsData[userId][matchId] = doc.data();
-      });
-      setPredictions(predictionsData);
-      console.log('✅ Predicciones cargadas:', Object.keys(predictionsData).length);
-      Object.keys(predictionsData).forEach(player => {
-        const predCount = Object.keys(predictionsData[player] || {}).length;
-        console.log(`  📊 ${player}: ${predCount} predicción(es)`);
-      });
-
-      // Cargar puntos
-      const pointsSnapshot = await getDocs(collection(db, 'userPoints'));
-      const pointsData = {};
-      pointsSnapshot.forEach(doc => {
-        pointsData[doc.id] = doc.data().points || 0;
-      });
-      setUserPoints(pointsData);
-      console.log('✅ Puntos cargados:', Object.keys(pointsData).length);
-
-      // Cargar llegadas
-      const arrivalsSnapshot = await getDocs(collection(db, 'arrivals'));
-      const arrivalsData = {};
-      arrivalsSnapshot.forEach(doc => {
-        arrivalsData[doc.id] = doc.data();
-      });
-      setArrivals(arrivalsData);
-      console.log('✅ Llegadas cargadas:', Object.keys(arrivalsData).length);
-
-      // Cargar goles
-      const goalsSnapshot = await getDocs(collection(db, 'goals'));
-      const goalsData = [];
-      goalsSnapshot.forEach(doc => {
-        goalsData.push({ ...doc.data(), id: doc.id });
-      });
-      setGoals(goalsData);
-      console.log('✅ Goles cargados:', goalsData.length);
-
-      // Cargar votaciones
-      const votesSnapshot = await getDocs(collection(db, 'votes'));
-      const votesData = {};
-      votesSnapshot.forEach(doc => {
-        votesData[doc.id] = doc.data();
-      });
-      setVotes(votesData);
-      console.log('✅ Votos cargados:', Object.keys(votesData).length);
-
-      console.log('🎉 Todos los datos cargados exitosamente');
-
-    } catch (error) {
-      console.error('❌ Error al cargar datos:', error);
-      alert('Error al cargar datos desde Firebase. Verifica la configuración.');
-    }
-  };
-
-  // Función para cargar configuración de visibilidad
-  const loadVisibilitySettings = async () => {
-    try {
-      const visibilityDoc = await getDoc(doc(db, 'settings', 'visibility'));
-      if (visibilityDoc.exists()) {
-        setVisibility(visibilityDoc.data());
-        console.log('👁️ Configuración de visibilidad cargada:', visibilityDoc.data());
+    // Listener para predicciones (documento separado)
+    const predictionsDocRef = doc(db, 'championsData', 'predictions');
+    const unsubscribePredictions = onSnapshot(predictionsDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        console.log('📊 Predicciones cargadas:', Object.keys(data).length, 'usuarios');
+        setPredictions(data);
+        
+        Object.keys(data).forEach(player => {
+          const predCount = Object.keys(data[player] || {}).length;
+          console.log(`  ✅ ${player}: ${predCount} predicción(es)`);
+        });
       } else {
-        const defaultVisibility = {
+        console.log('📊 No hay predicciones aún');
+        setPredictions({});
+      }
+    }, (error) => {
+      console.error('❌ Error al cargar predicciones:', error);
+    });
+    
+    // Listener para visibilidad (admin controls)
+    const visibilityDocRef = doc(db, 'settings', 'visibility');
+    const unsubscribeVisibility = onSnapshot(visibilityDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setVisibility(docSnap.data());
+        console.log('👁️ Configuración de visibilidad cargada');
+      } else {
+        // Valores por defecto si no existe
+        setVisibility({
           groups: true,
           predictions: false,
           results: false,
+          allPredictions: false,
           standings: false
-        };
-        await setDoc(doc(db, 'settings', 'visibility'), defaultVisibility);
-        setVisibility(defaultVisibility);
+        });
       }
-    } catch (error) {
+    }, (error) => {
       console.error('❌ Error al cargar visibilidad:', error);
-    }
+    });
+    
+    console.log('✅ Listeners configurados correctamente');
+    
+    // Cleanup function
+    return () => {
+      unsubscribeMain();
+      unsubscribePredictions();
+      unsubscribeVisibility();
+    };
   };
 
-// Función para guardar datos en Firebase
+// Función para guardar datos en Firebase (Firestore)
 const saveData = async (updatedData = {}) => {
-  // CRÍTICO: Usar datos actualizados si se proveen, sino usar estado actual
-  const dataToSave = {
-    groups: updatedData.groups !== undefined ? updatedData.groups : groups,
-    matches: updatedData.matches !== undefined ? updatedData.matches : matches,
-    predictions: updatedData.predictions !== undefined ? updatedData.predictions : predictions,
-    userPoints: updatedData.userPoints !== undefined ? updatedData.userPoints : userPoints,
-    arrivals: updatedData.arrivals !== undefined ? updatedData.arrivals : arrivals,
-    goals: updatedData.goals !== undefined ? updatedData.goals : goals,
-    votes: updatedData.votes !== undefined ? updatedData.votes : votes,
-    activeVoting: updatedData.activeVoting !== undefined ? updatedData.activeVoting : activeVoting,
-    votingStartTime: updatedData.votingStartTime !== undefined ? updatedData.votingStartTime : votingStartTime
-  };
-  
-  console.log('💾 Guardando en Firebase...');
-  console.log('📊 Total de predicciones a guardar:', Object.keys(dataToSave.predictions).length);
-  Object.keys(dataToSave.predictions).forEach(player => {
-    const predCount = Object.keys(dataToSave.predictions[player] || {}).length;
-    console.log(`  ✅ ${player}: ${predCount} predicción(es)`);
-  });
+  console.log('💾 Guardando en Firestore...');
   
   try {
-    const dataRef = ref(database, 'championsData');
-    await set(dataRef, dataToSave);
-    console.log('✅ Datos guardados en Firebase exitosamente');
+    // Preparar datos principales (sin predicciones)
+    const mainData = {
+      groups: updatedData.groups !== undefined ? updatedData.groups : groups,
+      matches: updatedData.matches !== undefined ? updatedData.matches : matches,
+      userPoints: updatedData.userPoints !== undefined ? updatedData.userPoints : userPoints,
+      arrivals: updatedData.arrivals !== undefined ? updatedData.arrivals : arrivals,
+      goals: updatedData.goals !== undefined ? updatedData.goals : goals,
+      votes: updatedData.votes !== undefined ? updatedData.votes : votes,
+      activeVoting: updatedData.activeVoting !== undefined ? updatedData.activeVoting : activeVoting,
+      votingStartTime: updatedData.votingStartTime !== undefined ? updatedData.votingStartTime : votingStartTime,
+      lastUpdated: Date.now()
+    };
+    
+    // Guardar datos principales
+    const mainDocRef = doc(db, 'championsData', 'main');
+    await setDoc(mainDocRef, mainData, { merge: true });
+    console.log('✅ Datos principales guardados');
+    
+    // Guardar predicciones en documento separado (si se actualizaron)
+    if (updatedData.predictions !== undefined) {
+      const predictionsData = updatedData.predictions;
+      console.log('📊 Total de predicciones a guardar:', Object.keys(predictionsData).length);
+      
+      Object.keys(predictionsData).forEach(player => {
+        const predCount = Object.keys(predictionsData[player] || {}).length;
+        console.log(`  ✅ ${player}: ${predCount} predicción(es)`);
+      });
+      
+      const predictionsDocRef = doc(db, 'championsData', 'predictions');
+      await setDoc(predictionsDocRef, predictionsData, { merge: true });
+      console.log('✅ Predicciones guardadas en Firestore');
+    }
+    
+    console.log('✅ Todos los datos guardados exitosamente');
     return true;
+    
   } catch (error) {
     console.error('❌ Error al guardar datos:', error);
-    alert('Error al guardar. Intenta de nuevo.');
+    console.error('Detalles del error:', error.message);
+    alert(`Error al guardar: ${error.message}`);
     return false;
   }
 };
@@ -253,6 +220,29 @@ const saveData = async (updatedData = {}) => {
     const success = await saveData();
     if (success) {
       alert('✅ Datos sincronizados exitosamente!');
+    }
+  };
+  
+  // Función para actualizar visibilidad (solo admin)
+  const updateVisibility = async (key, value) => {
+    if (!isAdmin) {
+      alert('Solo el administrador puede cambiar la visibilidad');
+      return;
+    }
+    
+    try {
+      const newVisibility = { ...visibility, [key]: value };
+      setVisibility(newVisibility);
+      
+      const visibilityDocRef = doc(db, 'settings', 'visibility');
+      await setDoc(visibilityDocRef, newVisibility, { merge: true });
+      
+      console.log(`✅ Visibilidad actualizada: ${key} = ${value}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Error al actualizar visibilidad:', error);
+      alert(`Error: ${error.message}`);
+      return false;
     }
   };
 
@@ -671,88 +661,73 @@ const saveData = async (updatedData = {}) => {
     return { total, details };
   };
 
-  // Función para guardar predicción - FIRESTORE CORRECTO
+  // Predicción de usuario
   const submitPrediction = async (matchId, winner, score1, score2, firstScorer) => {
-    console.log('🎯 Guardando predicción en Firestore...');
-    console.log('📝 Datos:', { matchId, winner, score1, score2, firstScorer, usuario: currentUser });
-
+    console.log('🎯 Guardando predicción:', { matchId, winner, score1, score2, firstScorer });
+    console.log('👤 Usuario actual:', currentUser);
+    
     if (!currentUser) {
       alert('Error: Usuario no identificado');
       return;
     }
-
+    
     const match = matches.find(m => m.id === matchId);
     if (!match) {
       alert('Partido no encontrado');
       return;
     }
-
+    
     const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
+    
     if (timeElapsed > 3) {
       alert('El tiempo para predecir ha expirado');
       return;
     }
-
-    try {
-      // FORMATO CORRECTO: userId_matchId
-      const predictionId = `${currentUser}_${matchId}`;
-      const predictionRef = doc(db, 'predictions', predictionId);
-
-      const predictionData = {
-        userId: currentUser,
-        matchId: matchId,
-        winner: winner,
-        score1: parseInt(score1),
-        score2: parseInt(score2),
-        firstScorer: firstScorer,
-        timestamp: Date.now()
-      };
-
-      // USAR setDoc con merge (NO updateDoc)
-      await setDoc(predictionRef, predictionData, { merge: true });
-      
-      console.log('✅ Predicción guardada en Firestore:', predictionId);
-
-      // Actualizar estado local
-      const newPredictions = { ...predictions };
-      if (!newPredictions[currentUser]) {
-        newPredictions[currentUser] = {};
-      }
-      newPredictions[currentUser][matchId] = predictionData;
-      setPredictions(newPredictions);
-
-      alert('✅ Predicción guardada exitosamente');
-
-    } catch (error) {
-      console.error('❌ Error al guardar predicción:', error);
-      alert('Error al guardar predicción: ' + error.message);
-    }
-  };
+    
+    // Crear copia de predicciones con la nueva predicción
+    const newPredictions = { ...predictions };
     if (!newPredictions[currentUser]) {
       newPredictions[currentUser] = {};
     }
     
-    newPredictions[currentUser][matchId] = {
+    const predictionData = {
       winner,
       score1: parseInt(score1),
       score2: parseInt(score2),
       firstScorer,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      matchId,
+      userId: currentUser
     };
     
-    console.log('📊 Predicciones ANTES de actualizar estado:', JSON.parse(JSON.stringify(predictions)));
-    console.log('📊 Predicciones NUEVAS a guardar:', JSON.parse(JSON.stringify(newPredictions)));
+    newPredictions[currentUser][matchId] = predictionData;
     
-    // Actualizar estado local
-    setPredictions(newPredictions);
+    console.log('📊 Predicciones ANTES:', JSON.parse(JSON.stringify(predictions)));
+    console.log('📊 Predicciones NUEVAS:', JSON.parse(JSON.stringify(newPredictions)));
     
-    // CRÍTICO: Pasar las predicciones NUEVAS directamente a saveData
-    // No confiar en que el estado se actualice inmediatamente
-    const success = await saveData({ predictions: newPredictions });
-    
-    if (success) {
+    try {
+      // MÉTODO 1: Guardar en documento de predicciones general (para listado admin)
+      const predictionsDocRef = doc(db, 'championsData', 'predictions');
+      await setDoc(predictionsDocRef, newPredictions, { merge: true });
+      console.log('✅ Predicción guardada en documento general');
+      
+      // MÉTODO 2: Guardar predicción individual (estructura por usuario)
+      const userPredictionDocRef = doc(db, 'predictions', `${currentUser}_${matchId}`);
+      await setDoc(userPredictionDocRef, predictionData, { merge: true });
+      console.log('✅ Predicción guardada como documento individual');
+      
+      // Actualizar estado local
+      setPredictions(newPredictions);
+      
       alert('✅ Predicción guardada exitosamente');
       console.log('✅ Predicción guardada para', currentUser, 'en partido', matchId);
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Error al guardar predicción:', error);
+      console.error('Detalles:', error.message);
+      alert(`Error al guardar predicción: ${error.message}`);
+      return false;
     }
   };
 
@@ -1130,7 +1105,19 @@ const saveData = async (updatedData = {}) => {
         )}
 
         {activeSection === 'resultados' && (
-          <ResultsSection matches={matches} />
+          <>
+            {!isAdmin && !visibility.results ? (
+              <div className="container mx-auto px-4 py-8">
+                <div className="bg-gray-900 rounded-xl p-8 text-center border-2" style={{ borderColor: '#FFD700' }}>
+                  <Lock className="w-16 h-16 mx-auto mb-4" style={{ color: '#FFD700' }} />
+                  <h2 className="text-2xl font-bold text-white mb-2">Sección No Disponible</h2>
+                  <p className="text-gray-400">El administrador no ha habilitado esta sección aún</p>
+                </div>
+              </div>
+            ) : (
+              <ResultsSection matches={matches} />
+            )}
+          </>
         )}
 
         {activeSection === 'verpredicciones' && isAdmin && (
@@ -1143,17 +1130,31 @@ const saveData = async (updatedData = {}) => {
         )}
 
         {activeSection === 'clasificacion' && (
-          <ClassificationSection
-            classificationTab={classificationTab}
-            setClassificationTab={setClassificationTab}
-            userPoints={userPoints}
-            arrivals={arrivals}
-            groups={groups}
-            calculateGroupStandings={calculateGroupStandings}
-            calculateVotingResults={calculateVotingResults}
-            goals={goals}
-            players={players}
-          />
+          <>
+            {!isAdmin && !visibility.standings ? (
+              <div className="container mx-auto px-4 py-8">
+                <div className="bg-gray-900 rounded-xl p-8 text-center border-2" style={{ borderColor: '#FFD700' }}>
+                  <Lock className="w-16 h-16 mx-auto mb-4" style={{ color: '#FFD700' }} />
+                  <h2 className="text-2xl font-bold text-white mb-2">Sección No Disponible</h2>
+                  <p className="text-gray-400">El administrador no ha habilitado esta sección aún</p>
+                </div>
+              </div>
+            ) : (
+              <ClassificationSection
+                classificationTab={classificationTab}
+                setClassificationTab={setClassificationTab}
+                userPoints={userPoints}
+                arrivals={arrivals}
+                groups={groups}
+                calculateGroupStandings={calculateGroupStandings}
+                calculateVotingResults={calculateVotingResults}
+                goals={goals}
+                players={players}
+                isAdmin={isAdmin}
+                visibility={visibility}
+              />
+            )}
+          </>
         )}
 
         {activeSection === 'admin' && isAdmin && (
@@ -1196,6 +1197,8 @@ const saveData = async (updatedData = {}) => {
             enableVoting={enableVoting}
             disableVoting={disableVoting}
             calculateVotingResults={calculateVotingResults}
+            visibility={visibility}
+            updateVisibility={updateVisibility}
           />
         )}
       </div>
@@ -2601,7 +2604,8 @@ const AdminPanel = (props) => {
     setShowResetConfirm, resetSystem, players, arrivals, selectedPlayerForArrival,
     setSelectedPlayerForArrival, arrivalTime, setArrivalTime, registerArrival, goals,
     newGoalDescription, setNewGoalDescription, addGoal, updateGoal, deleteGoal, editingGoal,
-    setEditingGoal, activeVoting, enableVoting, disableVoting, calculateVotingResults
+    setEditingGoal, activeVoting, enableVoting, disableVoting, calculateVotingResults,
+    visibility, updateVisibility
   } = props;
 
   const [showMatchCreator, setShowMatchCreator] = useState(false);
@@ -2660,6 +2664,87 @@ const AdminPanel = (props) => {
 
   return (
     <div className="space-y-8">
+      {/* Control de Visibilidad */}
+      <div className="bg-gray-900 rounded-xl p-6 border-2" style={{ borderColor: '#FFD700' }}>
+        <div className="flex items-center gap-3 mb-6">
+          <Lock className="w-8 h-8" style={{ color: '#FFD700' }} />
+          <h3 className="text-2xl font-bold text-white">Control de Visibilidad</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-white font-semibold">Grupos</span>
+              <input
+                type="checkbox"
+                checked={visibility?.groups || false}
+                onChange={(e) => updateVisibility('groups', e.target.checked)}
+                className="w-6 h-6"
+              />
+            </label>
+            <p className="text-xs text-gray-400 mt-1">Mostrar tabla de grupos a usuarios</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-white font-semibold">Predicciones</span>
+              <input
+                type="checkbox"
+                checked={visibility?.predictions || false}
+                onChange={(e) => updateVisibility('predictions', e.target.checked)}
+                className="w-6 h-6"
+              />
+            </label>
+            <p className="text-xs text-gray-400 mt-1">Permitir hacer predicciones</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-white font-semibold">Resultados</span>
+              <input
+                type="checkbox"
+                checked={visibility?.results || false}
+                onChange={(e) => updateVisibility('results', e.target.checked)}
+                className="w-6 h-6"
+              />
+            </label>
+            <p className="text-xs text-gray-400 mt-1">Mostrar resultados de partidos</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-white font-semibold">Todas las Predicciones</span>
+              <input
+                type="checkbox"
+                checked={visibility?.allPredictions || false}
+                onChange={(e) => updateVisibility('allPredictions', e.target.checked)}
+                className="w-6 h-6"
+              />
+            </label>
+            <p className="text-xs text-gray-400 mt-1">Permitir ver predicciones de otros</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-white font-semibold">Tabla de Posiciones</span>
+              <input
+                type="checkbox"
+                checked={visibility?.standings || false}
+                onChange={(e) => updateVisibility('standings', e.target.checked)}
+                className="w-6 h-6"
+              />
+            </label>
+            <p className="text-xs text-gray-400 mt-1">Mostrar clasificación de puntos</p>
+          </div>
+        </div>
+        
+        <div className="mt-4 p-4 bg-blue-900 rounded-lg">
+          <p className="text-sm text-blue-200">
+            ℹ️ Los usuarios solo verán las secciones habilitadas aquí. Los controles son instantáneos.
+          </p>
+        </div>
+      </div>
+    
       {/* Control de Llegadas */}
       <div className="bg-gray-900 rounded-xl p-6 border-2" style={{ borderColor: '#FFD700' }}>
         <div className="flex items-center gap-3 mb-6">
