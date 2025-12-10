@@ -1119,7 +1119,7 @@ const saveAllData = async () => {
             <Trophy className="w-10 h-10" style={{ color: '#FFD700' }} />
             <div>
               <h1 className="text-2xl font-bold" style={{ color: '#FFD700' }}>CHAMPIONS LEAGUE</h1>
-              <p className="text-sm text-gray-400">Predicciones 2024</p>
+              <p className="text-sm text-gray-400">Predicciones 2025-2</p>
             </div>
           </div>
           
