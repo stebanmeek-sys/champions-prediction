@@ -1002,20 +1002,6 @@ const saveAllData = async () => {
       alert('Error al guardar predicción: ' + error.message);
     }
   };
-      newPredictions[currentUser][matchId] = predictionData;
-      setPredictions(newPredictions);
-      
-      alert('✅ Predicción guardada exitosamente');
-      
-      // Recargar predicciones para asegurar sincronización
-      await loadUserPredictions(currentUser);
-      
-    } catch (error) {
-      console.error('❌ Error al guardar predicción:', error);
-      console.error('❌ Detalles del error:', error.message);
-      alert('Error al guardar predicción: ' + error.message);
-    }
-  };
 
   // Verificar si puede editar
   const canEditPrediction = (matchId) => {
