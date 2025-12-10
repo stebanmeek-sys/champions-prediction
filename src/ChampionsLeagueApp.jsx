@@ -58,11 +58,10 @@ const ChampionsLeagueApp = () => {
   
   // Estados de visibilidad (controlados desde Firebase)
   const [visibility, setVisibility] = useState({
-    groups: true,           // Siempre visible - no controlable
-    predictions: true,      // Siempre habilitado - no controlable
-    predictionsPoints: false, // Tabla de puntos de predicciones
-    lateTable: false,       // Tabla de llegadas tarde/impuntualidad
+    groups: true,      // Siempre visible por defecto
+    predictions: false,
     results: false,
+    standings: false,
     voting: false
   });
   
@@ -128,11 +127,10 @@ const ChampionsLeagueApp = () => {
       } else {
         // Crear documento de visibilidad por defecto
         const defaultVisibility = {
-          groups: true,           // Siempre visible
-          predictions: true,      // Siempre habilitado
-          predictionsPoints: false, // Tabla de puntos - controlable
-          lateTable: false,       // Tabla de impuntualidad - controlable
+          groups: true,
+          predictions: false,
           results: false,
+          standings: false,
           voting: false
         };
         await setDoc(visibilityRef, defaultVisibility);
@@ -272,32 +270,6 @@ const ChampionsLeagueApp = () => {
       console.log(`✅ ${Object.keys(userPreds).length} predicciones cargadas para ${userId}`);
     } catch (error) {
       console.error(`❌ Error al cargar predicciones de ${userId}:`, error);
-    }
-  };
-  
-  // Cargar votos de un usuario específico
-  const loadUserVotes = async (userId) => {
-    try {
-      console.log(`📥 Cargando votos de ${userId}...`);
-      const votesRef = collection(db, 'votes');
-      const q = query(votesRef, where('userId', '==', userId));
-      const querySnapshot = await getDocs(q);
-      
-      const userVotesData = {};
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const votingType = data.votingType;
-        userVotesData[votingType] = data.voteData;
-      });
-      
-      setVotes(prev => ({
-        ...prev,
-        [userId]: userVotesData
-      }));
-      
-      console.log(`✅ ${Object.keys(userVotesData).length} votos cargados para ${userId}`);
-    } catch (error) {
-      console.error(`❌ Error al cargar votos de ${userId}:`, error);
     }
   };
 
@@ -452,20 +424,6 @@ const saveAllData = async () => {
   };
 
   // Gestión de goles
-  // Guardar goles
-  const saveGoals = async (updatedGoals = goals) => {
-    try {
-      const goalsRef = doc(db, 'data', 'goals');
-      await setDoc(goalsRef, { goals: updatedGoals }, { merge: true });
-      console.log('✅ Goles guardados');
-      return true;
-    } catch (error) {
-      console.error('❌ Error al guardar goles:', error);
-      return false;
-    }
-  };
-
-  // Gestión de goles
   const addGoal = async () => {
     if (!newGoalDescription.trim()) {
       alert('Debes ingresar una descripción del gol');
@@ -477,73 +435,36 @@ const saveAllData = async () => {
       description: newGoalDescription
     };
     
-    const updatedGoals = [...goals, newGoal];
-    setGoals(updatedGoals);
+    setGoals([...goals, newGoal]);
     setNewGoalDescription('');
-    
-    const success = await saveGoals(updatedGoals);
-    if (success) {
-      alert('Gol agregado exitosamente');
-    }
+    await saveAllData();
+    alert('Gol agregado exitosamente');
   };
 
   const updateGoal = async (goalId, newDescription) => {
-    const updatedGoals = goals.map(g => g.id === goalId ? { ...g, description: newDescription } : g);
-    setGoals(updatedGoals);
+    setGoals(goals.map(g => g.id === goalId ? { ...g, description: newDescription } : g));
     setEditingGoal(null);
-    
-    const success = await saveGoals(updatedGoals);
-    if (success) {
-      alert('Gol actualizado exitosamente');
-    }
+    await saveAllData();
+    alert('Gol actualizado exitosamente');
   };
 
   const deleteGoal = async (goalId) => {
-    const updatedGoals = goals.filter(g => g.id !== goalId);
-    setGoals(updatedGoals);
-    await saveGoals(updatedGoals);
+    setGoals(goals.filter(g => g.id !== goalId));
+    await saveAllData();
   };
 
   // Habilitar votación
-  // Habilitar votación
   const enableVoting = async (votingType) => {
     setActiveVoting(votingType);
-    const startTime = Date.now();
-    setVotingStartTime(startTime);
-    
-    try {
-      const votesRef = doc(db, 'data', 'votes');
-      await setDoc(votesRef, { 
-        votes,
-        activeVoting: votingType,
-        votingStartTime: startTime 
-      }, { merge: true });
-      console.log(`✅ Votación "${votingType}" habilitada`);
-      alert(`Votación habilitada: ${votingType}. Los usuarios tienen 3 minutos para votar.`);
-    } catch (error) {
-      console.error('❌ Error al habilitar votación:', error);
-      alert('Error al habilitar votación');
-    }
+    setVotingStartTime(Date.now());
+    await saveAllData();
   };
 
   // Deshabilitar votación
   const disableVoting = async () => {
     setActiveVoting(null);
     setVotingStartTime(null);
-    
-    try {
-      const votesRef = doc(db, 'data', 'votes');
-      await setDoc(votesRef, { 
-        votes,
-        activeVoting: null,
-        votingStartTime: null 
-      }, { merge: true });
-      console.log('✅ Votación deshabilitada');
-      alert('Votación cerrada exitosamente');
-    } catch (error) {
-      console.error('❌ Error al deshabilitar votación:', error);
-      alert('Error al deshabilitar votación');
-    }
+    await saveAllData();
   };
 
   // Verificar si puede votar
@@ -554,43 +475,21 @@ const saveAllData = async () => {
   };
 
   // Enviar voto
-  // Enviar voto (versión simplificada adaptada del código antiguo)
   const submitVote = async (votingType, voteData) => {
     if (!canVote()) {
       alert('El tiempo para votar ha expirado');
       return;
     }
     
-    // Crear copia de votos con el nuevo voto
     const newVotes = { ...votes };
     if (!newVotes[currentUser]) {
       newVotes[currentUser] = {};
     }
     
     newVotes[currentUser][votingType] = voteData;
-    
-    console.log('🗳️ Guardando voto:', votingType);
-    console.log('👤 Usuario:', currentUser);
-    console.log('📊 Datos del voto:', voteData);
-    
-    // Actualizar estado local
     setVotes(newVotes);
-    
-    // Guardar en Firestore
-    try {
-      const votesRef = doc(db, 'data', 'votes');
-      await setDoc(votesRef, { 
-        votes: newVotes,
-        activeVoting,
-        votingStartTime 
-      }, { merge: true });
-      
-      console.log('✅ Voto guardado exitosamente en Firestore');
-      alert('✅ Voto registrado exitosamente');
-    } catch (error) {
-      console.error('❌ Error al guardar voto:', error);
-      alert('Error al guardar voto. Por favor intenta de nuevo.');
-    }
+    await saveAllData();
+    alert('Voto registrado exitosamente');
   };
 
   // Calcular resultados de votaciones
@@ -927,19 +826,9 @@ const saveAllData = async () => {
       return;
     }
     
-    // Verificar que el partido esté habilitado
-    if (!match.enabled || !match.enabledAt) {
-      alert('Este partido no está habilitado para predicciones');
-      return;
-    }
-    
-    // Calcular tiempo transcurrido desde habilitación
-    const timeElapsed = (Date.now() - match.enabledAt) / 1000; // en segundos
-    const timeElapsedMinutes = timeElapsed / 60;
-    
-    // Si pasaron más de 3 minutos, no permitir
-    if (timeElapsedMinutes > 3) {
-      alert('El tiempo para predecir ha expirado (máximo 3 minutos)');
+    const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
+    if (timeElapsed > 3) {
+      alert('El tiempo para predecir ha expirado');
       return;
     }
     
@@ -949,22 +838,11 @@ const saveAllData = async () => {
       return;
     }
     
-    // Verificar si ya existe una predicción locked para este usuario/partido
-    const docId = `${currentUser}_${matchId}`;
-    const predictionRef = doc(db, 'predictions', docId);
-    
     try {
-      const existingDoc = await getDoc(predictionRef);
-      if (existingDoc.exists() && existingDoc.data().locked === true) {
-        alert('⚠️ Esta predicción ya fue enviada y no puede ser editada');
-        return;
-      }
-    } catch (error) {
-      console.log('No existe predicción previa, continuando...');
-    }
-    
-    try {
-      const now = Date.now();
+      // CRÍTICO: Crear ID del documento como userId_matchId
+      const docId = `${currentUser}_${matchId}`;
+      const predictionRef = doc(db, 'predictions', docId);
+      
       const predictionData = {
         userId: currentUser,
         matchId: matchId,
@@ -972,22 +850,18 @@ const saveAllData = async () => {
         score1: parseInt(score1),
         score2: parseInt(score2),
         firstScorer: firstScorer,
-        timestamp: now,
-        submittedAt: new Date(now).toISOString(),
-        locked: true, // ✅ CRÍTICO: Bloquear edición permanentemente
-        timeUsed: Math.floor(timeElapsed) // Tiempo usado en segundos
+        timestamp: Date.now(),
+        savedAt: new Date().toISOString()
       };
       
       console.log('💾 Guardando en Firestore...');
       console.log('📄 Doc ID:', docId);
       console.log('📊 Data:', predictionData);
-      console.log('🔒 Locked: true (no se puede editar)');
       
-      // GUARDAR en Firestore - NO usar merge, sobrescribir completamente
-      await setDoc(predictionRef, predictionData);
+      // USAR setDoc con merge:true para crear o actualizar
+      await setDoc(predictionRef, predictionData, { merge: true });
       
       console.log('✅ Predicción guardada en Firestore exitosamente');
-      console.log(`⏱️ Tiempo usado: ${Math.floor(timeElapsedMinutes * 60)}s de 180s`);
       
       // Actualizar estado local
       const newPredictions = { ...predictions };
@@ -997,9 +871,9 @@ const saveAllData = async () => {
       newPredictions[currentUser][matchId] = predictionData;
       setPredictions(newPredictions);
       
-      alert('✅ Predicción enviada exitosamente y bloqueada para edición');
+      alert('✅ Predicción guardada exitosamente');
       
-      // Recargar predicciones para sincronizar
+      // Recargar predicciones para asegurar sincronización
       await loadUserPredictions(currentUser);
       
     } catch (error) {
@@ -1014,16 +888,6 @@ const saveAllData = async () => {
     const match = matches.find(m => m.id === matchId);
     if (!match || !match.enabledAt) return false;
     
-    // Si el partido ya tiene resultado, no se puede editar
-    if (match.result) return false;
-    
-    // Verificar si ya existe predicción locked
-    const userPrediction = predictions[currentUser]?.[matchId];
-    if (userPrediction && userPrediction.locked === true) {
-      return false; // ✅ Predicción bloqueada, no se puede editar
-    }
-    
-    // Verificar tiempo transcurrido
     const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
     return timeElapsed <= 3;
   };
@@ -1255,7 +1119,7 @@ const saveAllData = async () => {
             <Trophy className="w-10 h-10" style={{ color: '#FFD700' }} />
             <div>
               <h1 className="text-2xl font-bold" style={{ color: '#FFD700' }}>CHAMPIONS LEAGUE</h1>
-              <p className="text-sm text-gray-400">Predicciones 2024</p>
+              <p className="text-sm text-gray-400">Predicciones 2025-2</p>
             </div>
           </div>
           
@@ -1301,8 +1165,7 @@ const saveAllData = async () => {
       <div className="bg-gray-900 border-b" style={{ borderColor: '#FFD700' }}>
         <div className="container mx-auto px-4">
           <div className="flex gap-4">
-            {/* Predicciones - SIEMPRE visible para usuarios */}
-            {!isAdmin && (
+            {!isAdmin && visibility.predictions && (
               <button
                 onClick={() => setActiveSection('predicciones')}
                 className={`px-6 py-3 font-semibold ${activeSection === 'predicciones' ? 'border-b-4' : 'text-gray-400'}`}
@@ -1471,23 +1334,6 @@ const saveAllData = async () => {
           />
         )}
       </div>
-      
-      {/* Botón Flotante de Sincronización - SIEMPRE VISIBLE */}
-      {(currentUser || isAdmin) && (
-        <button
-          onClick={manualSync}
-          className="fixed bottom-6 right-6 z-50 p-4 rounded-full shadow-2xl hover:scale-110 transition-all duration-200 flex items-center gap-2 font-bold"
-          style={{
-            background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-            color: '#05080F',
-            boxShadow: '0 8px 32px rgba(255, 215, 0, 0.4)'
-          }}
-          title="Sincronizar con Firebase"
-        >
-          <RefreshCw className="w-6 h-6" />
-          <span className="hidden md:inline">Sync</span>
-        </button>
-      )}
     </div>
   );
 };
@@ -1807,100 +1653,6 @@ const PredictionsSection = ({ matches, currentUser, predictions, canEditPredicti
 };
 
 // Componente de sección de votaciones
-// Componente para mostrar votos guardados del usuario (solo lectura)
-const UserVotesDisplay = ({ votes, currentUser, goals, players }) => {
-  const userVotes = votes[currentUser] || {};
-  const hasVotes = Object.keys(userVotes).length > 0;
-  
-  if (!hasVotes) {
-    return null; // No mostrar si no hay votos
-  }
-  
-  const getGoalDescription = (goalId) => {
-    const goal = goals?.find(g => g.id === parseInt(goalId));
-    return goal ? goal.description : goalId;
-  };
-  
-  const votingNames = {
-    'best_goal': 'Mejor Gol',
-    'most_quiet': 'Más Callado',
-    'funniest': 'Más Chistoso',
-    'revelation': 'Jugador Revelación',
-    'ballon_dor': 'Balón de Oro'
-  };
-  
-  return (
-    <div className="space-y-4 mb-8">
-      <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
-        <UserCheck className="w-7 h-7" style={{ color: '#FFD700' }} />
-        Tus Votos Registrados
-      </h3>
-      
-      {Object.entries(userVotes).map(([votingType, voteData]) => (
-        <div 
-          key={votingType} 
-          className="bg-gray-900 rounded-xl p-6 border-2" 
-          style={{ borderColor: '#4ade80' }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#4ade80' }}>
-              <span className="text-white font-bold">✓</span>
-            </div>
-            <h4 className="text-xl font-bold text-white">
-              {votingNames[votingType] || votingType}
-            </h4>
-          </div>
-          
-          <div className="space-y-2">
-            {(votingType === 'best_goal' || votingType === 'ballon_dor') ? (
-              // Votación con top 3
-              <>
-                <div className="flex items-center gap-3 text-gray-300">
-                  <span className="text-yellow-400 font-bold">1°</span>
-                  <span className="font-semibold">
-                    {votingType === 'best_goal' 
-                      ? getGoalDescription(voteData.first) 
-                      : voteData.first}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-300">
-                  <span className="text-gray-400 font-bold">2°</span>
-                  <span className="font-semibold">
-                    {votingType === 'best_goal' 
-                      ? getGoalDescription(voteData.second) 
-                      : voteData.second}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-300">
-                  <span className="text-orange-400 font-bold">3°</span>
-                  <span className="font-semibold">
-                    {votingType === 'best_goal' 
-                      ? getGoalDescription(voteData.third) 
-                      : voteData.third}
-                  </span>
-                </div>
-              </>
-            ) : (
-              // Votación simple
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="font-semibold text-lg" style={{ color: '#FFD700' }}>
-                  {voteData}
-                </span>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-4 pt-4 border-t border-gray-800">
-            <p className="text-xs text-gray-500 italic">
-              🔒 Este voto ha sido registrado y no puede ser editado
-            </p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
 const VotingSection = ({ activeVoting, canVote, votingStartTime, votes, currentUser, submitVote, goals, players }) => {
   const [timeLeft, setTimeLeft] = useState(180);
 
@@ -2022,14 +1774,6 @@ const VotingSection = ({ activeVoting, canVote, votingStartTime, votes, currentU
 
   return (
     <div className="space-y-6">
-      {/* Mostrar votos guardados del usuario */}
-      <UserVotesDisplay 
-        votes={votes} 
-        currentUser={currentUser} 
-        goals={goals} 
-        players={players}
-      />
-      
       <div className="bg-gray-900 rounded-xl p-6 border-2" style={{ borderColor: '#FFD700' }}>
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
@@ -2673,8 +2417,8 @@ const ResultCard = ({ match }) => {
 const ClassificationSection = ({ classificationTab, setClassificationTab, userPoints, arrivals, groups, calculateGroupStandings, calculateVotingResults, goals, players, isAdmin, visibility }) => {
   
   // Determinar qué tabs mostrar
-  const showPredictionsTab = isAdmin || visibility?.predictionsPoints; // Tabla de puntos de predicciones
-  const showImpuntualTab = isAdmin || visibility?.lateTable; // Tabla de impuntualidad
+  const showPredictionsTab = isAdmin || visibility?.predictions;
+  const showImpuntualTab = isAdmin || visibility?.standings;
   const showGruposTab = true; // Siempre visible
   const showVotingTabs = isAdmin || visibility?.voting;
   
@@ -3084,39 +2828,19 @@ const AdminPanel = (props) => {
         <div className="bg-gray-800 p-4 rounded-lg mb-6 border-2 border-blue-500">
           <p className="text-blue-300 font-semibold mb-2">📌 Reglas de Visibilidad:</p>
           <ul className="text-gray-300 text-sm space-y-1">
-            <li>• <strong>Predicciones:</strong> Tab siempre visible para usuarios (hacer predicciones)</li>
-            <li>• <strong>Votaciones:</strong> Tab siempre visible, items dentro se muestran cuando se habilita</li>
-            <li>• <strong>Grupos:</strong> Tabla siempre visible en Clasificación</li>
-            <li>• <strong>Tablas de Puntos e Impuntualidad:</strong> Controlables por admin</li>
+            <li>• <strong>Votaciones:</strong> Tab siempre visible, items dentro se muestran cuando se habilita "Votaciones"</li>
+            <li>• <strong>Clasificación:</strong> Tab siempre visible. Usuarios ven "Grupos" siempre. Otras tablas según configuración</li>
+            <li>• <strong>Admin:</strong> Ve todas las tablas de clasificación sin restricciones</li>
           </ul>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Predicciones - Siempre habilitado */}
-          <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: '#4ade80' }}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5" style={{ color: '#4ade80' }} />
-                <div>
-                  <span className="text-white font-semibold block">Predicciones</span>
-                  <span className="text-xs text-gray-400">Hacer predicciones</span>
-                </div>
-              </div>
-              <span className="text-sm text-gray-400 bg-gray-700 px-3 py-1 rounded-full">
-                Siempre activo
-              </span>
-            </div>
-          </div>
-          
           {/* Grupos - Siempre visible */}
           <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: '#4ade80' }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Users className="w-5 h-5" style={{ color: '#4ade80' }} />
-                <div>
-                  <span className="text-white font-semibold block">Tabla de Grupos</span>
-                  <span className="text-xs text-gray-400">En Clasificación</span>
-                </div>
+                <span className="text-white font-semibold">Grupos</span>
               </div>
               <span className="text-sm text-gray-400 bg-gray-700 px-3 py-1 rounded-full">
                 Siempre visible
@@ -3124,48 +2848,20 @@ const AdminPanel = (props) => {
             </div>
           </div>
           
-          {/* Tabla de Puntos de Predicciones */}
-          <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: visibility?.predictionsPoints ? '#4ade80' : '#6b7280' }}>
+          {/* Predicciones */}
+          <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: visibility?.predictions ? '#4ade80' : '#6b7280' }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Trophy className="w-5 h-5" style={{ color: visibility?.predictionsPoints ? '#4ade80' : '#6b7280' }} />
-                <div>
-                  <span className="text-white font-semibold block">Tabla de Puntos</span>
-                  <span className="text-xs text-gray-400">Ranking de predicciones</span>
-                </div>
+                <Calendar className="w-5 h-5" style={{ color: visibility?.predictions ? '#4ade80' : '#6b7280' }} />
+                <span className="text-white font-semibold">Predicciones</span>
               </div>
               <button
-                onClick={() => updateVisibility('predictionsPoints', !visibility?.predictionsPoints)}
+                onClick={() => updateVisibility('predictions', !visibility?.predictions)}
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  visibility?.predictionsPoints ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+                  visibility?.predictions ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
-                {visibility?.predictionsPoints ? (
-                  <><EyeOff className="w-4 h-4 inline mr-2" />Ocultar</>
-                ) : (
-                  <><Eye className="w-4 h-4 inline mr-2" />Mostrar</>
-                )}
-              </button>
-            </div>
-          </div>
-          
-          {/* Tabla de Impuntualidad */}
-          <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: visibility?.lateTable ? '#4ade80' : '#6b7280' }}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Timer className="w-5 h-5" style={{ color: visibility?.lateTable ? '#4ade80' : '#6b7280' }} />
-                <div>
-                  <span className="text-white font-semibold block">Tabla de Impuntualidad</span>
-                  <span className="text-xs text-gray-400">Llegadas tarde</span>
-                </div>
-              </div>
-              <button
-                onClick={() => updateVisibility('lateTable', !visibility?.lateTable)}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  visibility?.lateTable ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-                }`}
-              >
-                {visibility?.lateTable ? (
+                {visibility?.predictions ? (
                   <><EyeOff className="w-4 h-4 inline mr-2" />Ocultar</>
                 ) : (
                   <><Eye className="w-4 h-4 inline mr-2" />Mostrar</>
@@ -3178,7 +2874,7 @@ const AdminPanel = (props) => {
           <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: visibility?.results ? '#4ade80' : '#6b7280' }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Award className="w-5 h-5" style={{ color: visibility?.results ? '#4ade80' : '#6b7280' }} />
+                <Trophy className="w-5 h-5" style={{ color: visibility?.results ? '#4ade80' : '#6b7280' }} />
                 <span className="text-white font-semibold">Resultados</span>
               </div>
               <button
@@ -3188,6 +2884,31 @@ const AdminPanel = (props) => {
                 }`}
               >
                 {visibility?.results ? (
+                  <><EyeOff className="w-4 h-4 inline mr-2" />Ocultar</>
+                ) : (
+                  <><Eye className="w-4 h-4 inline mr-2" />Mostrar</>
+                )}
+              </button>
+            </div>
+          </div>
+          
+          {/* Clasificación - Tablas internas */}
+          <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: visibility?.standings ? '#4ade80' : '#6b7280' }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Award className="w-5 h-5" style={{ color: visibility?.standings ? '#4ade80' : '#6b7280' }} />
+                <div>
+                  <span className="text-white font-semibold block">Tablas de Clasificación</span>
+                  <span className="text-xs text-gray-400">Predicciones e Impuntual</span>
+                </div>
+              </div>
+              <button
+                onClick={() => updateVisibility('standings', !visibility?.standings)}
+                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  visibility?.standings ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {visibility?.standings ? (
                   <><EyeOff className="w-4 h-4 inline mr-2" />Ocultar</>
                 ) : (
                   <><Eye className="w-4 h-4 inline mr-2" />Mostrar</>
