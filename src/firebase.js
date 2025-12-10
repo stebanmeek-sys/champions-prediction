@@ -1,3 +1,4 @@
+// firebase.js - Configuración de Firebase con Firestore
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
@@ -16,8 +17,7 @@ const firebaseConfig = {
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 
-
-// Inicializar Firestore (NO Realtime Database)
+// Inicializar Firestore
 const db = getFirestore(app);
 
 
