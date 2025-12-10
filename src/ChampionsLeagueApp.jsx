@@ -1176,7 +1176,8 @@ const saveAllData = async () => {
               </button>
             )}
 
-            {!isAdmin && visibility.voting && (
+            {/* Votaciones - SIEMPRE visible para usuarios */}
+            {!isAdmin && (
               <button
                 onClick={() => setActiveSection('votaciones')}
                 className={`px-6 py-3 font-semibold ${activeSection === 'votaciones' ? 'border-b-4' : 'text-gray-400'}`}
@@ -1198,16 +1199,15 @@ const saveAllData = async () => {
               </button>
             )}
             
-            {visibility.standings && (
-              <button
-                onClick={() => setActiveSection('clasificacion')}
-                className={`px-6 py-3 font-semibold ${activeSection === 'clasificacion' ? 'border-b-4' : 'text-gray-400'}`}
-                style={activeSection === 'clasificacion' ? { color: '#FFD700', borderColor: '#FFD700' } : {}}
-              >
-                <Users className="inline w-5 h-5 mr-2" />
-                Clasificación
-              </button>
-            )}
+            {/* Clasificación - SIEMPRE visible */}
+            <button
+              onClick={() => setActiveSection('clasificacion')}
+              className={`px-6 py-3 font-semibold ${activeSection === 'clasificacion' ? 'border-b-4' : 'text-gray-400'}`}
+              style={activeSection === 'clasificacion' ? { color: '#FFD700', borderColor: '#FFD700' } : {}}
+            >
+              <Users className="inline w-5 h-5 mr-2" />
+              Clasificación
+            </button>
             
             {isAdmin && (
               <button
@@ -1284,6 +1284,8 @@ const saveAllData = async () => {
             calculateVotingResults={calculateVotingResults}
             goals={goals}
             players={players}
+            isAdmin={isAdmin}
+            visibility={visibility}
           />
         )}
 
@@ -2412,28 +2414,42 @@ const ResultCard = ({ match }) => {
 };
 
 // Sección de clasificación con pestañas
-const ClassificationSection = ({ classificationTab, setClassificationTab, userPoints, arrivals, groups, calculateGroupStandings, calculateVotingResults, goals, players }) => {
+const ClassificationSection = ({ classificationTab, setClassificationTab, userPoints, arrivals, groups, calculateGroupStandings, calculateVotingResults, goals, players, isAdmin, visibility }) => {
+  
+  // Determinar qué tabs mostrar
+  const showPredictionsTab = isAdmin || visibility?.predictions;
+  const showImpuntualTab = isAdmin || visibility?.standings;
+  const showGruposTab = true; // Siempre visible
+  const showVotingTabs = isAdmin || visibility?.voting;
+  
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold text-white mb-6">Clasificaciones</h2>
       
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 bg-gray-900 p-2 rounded-xl border-2" style={{ borderColor: '#FFD700' }}>
-        <button
-          onClick={() => setClassificationTab('predicciones')}
-          className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'predicciones' ? '' : 'text-gray-400'}`}
-          style={classificationTab === 'predicciones' ? { background: '#FFD700', color: '#05080F' } : {}}
-        >
-          Predicciones
-        </button>
-        <button
-          onClick={() => setClassificationTab('impuntual')}
-          className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'impuntual' ? '' : 'text-gray-400'}`}
-          style={classificationTab === 'impuntual' ? { background: '#FFD700', color: '#05080F' } : {}}
-        >
-          <Timer className="inline w-4 h-4 mr-1" />
-          Impuntual
-        </button>
+        {showPredictionsTab && (
+          <button
+            onClick={() => setClassificationTab('predicciones')}
+            className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'predicciones' ? '' : 'text-gray-400'}`}
+            style={classificationTab === 'predicciones' ? { background: '#FFD700', color: '#05080F' } : {}}
+          >
+            Predicciones
+          </button>
+        )}
+        
+        {showImpuntualTab && (
+          <button
+            onClick={() => setClassificationTab('impuntual')}
+            className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'impuntual' ? '' : 'text-gray-400'}`}
+            style={classificationTab === 'impuntual' ? { background: '#FFD700', color: '#05080F' } : {}}
+          >
+            <Timer className="inline w-4 h-4 mr-1" />
+            Impuntual
+          </button>
+        )}
+        
+        {/* Grupos - SIEMPRE visible */}
         <button
           onClick={() => setClassificationTab('grupos')}
           className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'grupos' ? '' : 'text-gray-400'}`}
@@ -2441,49 +2457,54 @@ const ClassificationSection = ({ classificationTab, setClassificationTab, userPo
         >
           Grupos
         </button>
-        <button
-          onClick={() => setClassificationTab('mejor_gol')}
-          className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'mejor_gol' ? '' : 'text-gray-400'}`}
-          style={classificationTab === 'mejor_gol' ? { background: '#FFD700', color: '#05080F' } : {}}
-        >
-          <Star className="inline w-4 h-4 mr-1" />
-          Mejor Gol
-        </button>
-        <button
-          onClick={() => setClassificationTab('mas_callado')}
-          className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'mas_callado' ? '' : 'text-gray-400'}`}
-          style={classificationTab === 'mas_callado' ? { background: '#FFD700', color: '#05080F' } : {}}
-        >
-          Callado
-        </button>
-        <button
-          onClick={() => setClassificationTab('mas_chistoso')}
-          className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'mas_chistoso' ? '' : 'text-gray-400'}`}
-          style={classificationTab === 'mas_chistoso' ? { background: '#FFD700', color: '#05080F' } : {}}
-        >
-          <Smile className="inline w-4 h-4 mr-1" />
-          Chistoso
-        </button>
-        <button
-          onClick={() => setClassificationTab('revelacion')}
-          className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'revelacion' ? '' : 'text-gray-400'}`}
-          style={classificationTab === 'revelacion' ? { background: '#FFD700', color: '#05080F' } : {}}
-        >
-          <Zap className="inline w-4 h-4 mr-1" />
-          Revelación
-        </button>
-        <button
-          onClick={() => setClassificationTab('ballon_dor')}
-          className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'ballon_dor' ? '' : 'text-gray-400'}`}
-          style={classificationTab === 'ballon_dor' ? { background: '#FFD700', color: '#05080F' } : {}}
-        >
-          <Trophy className="inline w-4 h-4 mr-1" />
-          Balón d'Or
-        </button>
+        
+        {showVotingTabs && (
+          <>
+            <button
+              onClick={() => setClassificationTab('mejor_gol')}
+              className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'mejor_gol' ? '' : 'text-gray-400'}`}
+              style={classificationTab === 'mejor_gol' ? { background: '#FFD700', color: '#05080F' } : {}}
+            >
+              <Star className="inline w-4 h-4 mr-1" />
+              Mejor Gol
+            </button>
+            <button
+              onClick={() => setClassificationTab('mas_callado')}
+              className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'mas_callado' ? '' : 'text-gray-400'}`}
+              style={classificationTab === 'mas_callado' ? { background: '#FFD700', color: '#05080F' } : {}}
+            >
+              Callado
+            </button>
+            <button
+              onClick={() => setClassificationTab('mas_chistoso')}
+              className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'mas_chistoso' ? '' : 'text-gray-400'}`}
+              style={classificationTab === 'mas_chistoso' ? { background: '#FFD700', color: '#05080F' } : {}}
+            >
+              <Smile className="inline w-4 h-4 mr-1" />
+              Chistoso
+            </button>
+            <button
+              onClick={() => setClassificationTab('revelacion')}
+              className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'revelacion' ? '' : 'text-gray-400'}`}
+              style={classificationTab === 'revelacion' ? { background: '#FFD700', color: '#05080F' } : {}}
+            >
+              <Zap className="inline w-4 h-4 mr-1" />
+              Revelación
+            </button>
+            <button
+              onClick={() => setClassificationTab('ballon_dor')}
+              className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm ${classificationTab === 'ballon_dor' ? '' : 'text-gray-400'}`}
+              style={classificationTab === 'ballon_dor' ? { background: '#FFD700', color: '#05080F' } : {}}
+            >
+              <Trophy className="inline w-4 h-4 mr-1" />
+              Balón d'Or
+            </button>
+          </>
+        )}
       </div>
 
       {/* Contenido de las pestañas */}
-      {classificationTab === 'predicciones' && (
+      {classificationTab === 'predicciones' && showPredictionsTab && (
         <div className="bg-gray-900 rounded-xl overflow-hidden border-2" style={{ borderColor: '#FFD700' }}>
           <table className="w-full">
             <thead className="bg-gray-800">
@@ -2516,7 +2537,7 @@ const ClassificationSection = ({ classificationTab, setClassificationTab, userPo
         </div>
       )}
 
-      {classificationTab === 'impuntual' && (
+      {classificationTab === 'impuntual' && showImpuntualTab && (
         <div className="bg-gray-900 rounded-xl overflow-hidden border-2" style={{ borderColor: '#FFD700' }}>
           <table className="w-full">
             <thead className="bg-gray-800">
@@ -2633,7 +2654,7 @@ const ClassificationSection = ({ classificationTab, setClassificationTab, userPo
       )}
 
       {/* Tablas de votaciones */}
-      {classificationTab === 'mejor_gol' && (
+      {classificationTab === 'mejor_gol' && showVotingTabs && (
         <VotingResultsTable 
           title="Mejor Gol"
           results={calculateVotingResults('best_goal')}
@@ -2642,28 +2663,28 @@ const ClassificationSection = ({ classificationTab, setClassificationTab, userPo
         />
       )}
 
-      {classificationTab === 'mas_callado' && (
+      {classificationTab === 'mas_callado' && showVotingTabs && (
         <VotingResultsTable 
           title="Más Callado"
           results={calculateVotingResults('most_quiet')}
         />
       )}
 
-      {classificationTab === 'mas_chistoso' && (
+      {classificationTab === 'mas_chistoso' && showVotingTabs && (
         <VotingResultsTable 
           title="Más Chistoso"
           results={calculateVotingResults('funniest')}
         />
       )}
 
-      {classificationTab === 'revelacion' && (
+      {classificationTab === 'revelacion' && showVotingTabs && (
         <VotingResultsTable 
           title="Jugador Revelación"
           results={calculateVotingResults('revelation')}
         />
       )}
 
-      {classificationTab === 'ballon_dor' && (
+      {classificationTab === 'ballon_dor' && showVotingTabs && (
         <VotingResultsTable 
           title="Balón d'Or"
           results={calculateVotingResults('ballon_dor')}
@@ -2800,9 +2821,18 @@ const AdminPanel = (props) => {
           <h3 className="text-2xl font-bold text-white">Control de Visibilidad</h3>
         </div>
         
-        <p className="text-gray-400 mb-6">
-          Controla qué secciones pueden ver los usuarios normales. Los grupos están siempre visibles por defecto.
+        <p className="text-gray-400 mb-4">
+          Controla qué secciones pueden ver los usuarios normales.
         </p>
+        
+        <div className="bg-gray-800 p-4 rounded-lg mb-6 border-2 border-blue-500">
+          <p className="text-blue-300 font-semibold mb-2">📌 Reglas de Visibilidad:</p>
+          <ul className="text-gray-300 text-sm space-y-1">
+            <li>• <strong>Votaciones:</strong> Tab siempre visible, items dentro se muestran cuando se habilita "Votaciones"</li>
+            <li>• <strong>Clasificación:</strong> Tab siempre visible. Usuarios ven "Grupos" siempre. Otras tablas según configuración</li>
+            <li>• <strong>Admin:</strong> Ve todas las tablas de clasificación sin restricciones</li>
+          </ul>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Grupos - Siempre visible */}
@@ -2862,12 +2892,15 @@ const AdminPanel = (props) => {
             </div>
           </div>
           
-          {/* Clasificación */}
+          {/* Clasificación - Tablas internas */}
           <div className="bg-gray-800 p-4 rounded-lg border-2" style={{ borderColor: visibility?.standings ? '#4ade80' : '#6b7280' }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Award className="w-5 h-5" style={{ color: visibility?.standings ? '#4ade80' : '#6b7280' }} />
-                <span className="text-white font-semibold">Clasificación</span>
+                <div>
+                  <span className="text-white font-semibold block">Tablas de Clasificación</span>
+                  <span className="text-xs text-gray-400">Predicciones e Impuntual</span>
+                </div>
               </div>
               <button
                 onClick={() => updateVisibility('standings', !visibility?.standings)}
@@ -2889,7 +2922,10 @@ const AdminPanel = (props) => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Vote className="w-5 h-5" style={{ color: visibility?.voting ? '#4ade80' : '#6b7280' }} />
-                <span className="text-white font-semibold">Votaciones</span>
+                <div>
+                  <span className="text-white font-semibold block">Votaciones</span>
+                  <span className="text-xs text-gray-400">Items y tablas de votación</span>
+                </div>
               </div>
               <button
                 onClick={() => updateVisibility('voting', !visibility?.voting)}
