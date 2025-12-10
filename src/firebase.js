@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase } from 'firebase/database';
+import { getFirestore } from 'firebase/firestore';
 
-// Tu configuración de Firebase
+// IMPORTANTE: Reemplaza estos valores con tu configuración real de Firebase
+// Puedes encontrarla en: Firebase Console → Configuración del proyecto → General
 const firebaseConfig = {
   apiKey: "AIzaSyCvnVqXXJvsLaPLgXaHnbMZLr5p6sZO6E4",
   authDomain: "champions-predictions-vote.firebaseapp.com",
@@ -12,8 +13,12 @@ const firebaseConfig = {
   appId: "1:784455119372:web:798fdcdb61d662cd277429"
 };
 
-// Initialize Firebase
+// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
 
-export { database };
+
+// Inicializar Firestore (NO Realtime Database)
+const db = getFirestore(app);
+
+// Exportar para usar en otros archivos
+export { db };

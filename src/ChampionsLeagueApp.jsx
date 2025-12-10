@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, Calendar, Award, Lock, Clock, Edit, Trash2, Plus, Save, ChevronDown, RefreshCw, AlertTriangle, Timer, Vote, Star, Smile, UserCheck, Zap } from 'lucide-react';
-import { database } from './firebase';
-import { ref, set, onValue, get } from 'firebase/database';
+import { Trophy, Users, Calendar, Award, Lock, Clock, Edit, Trash2, Plus, Save, ChevronDown, RefreshCw, AlertTriangle, Timer, Vote, Star, Smile, UserCheck, Zap } , Eye, EyeOff } from 'lucide-react';
+import { db } from './firebase';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
 
 const ChampionsLeagueApp = () => {
   // Datos iniciales de equipos y participantes
@@ -44,6 +44,15 @@ const ChampionsLeagueApp = () => {
   const [predictions, setPredictions] = useState({});
   const [userPoints, setUserPoints] = useState({});
   const [arrivals, setArrivals] = useState({});
+
+  // Estados de visibilidad (NUEVO)
+  const [visibility, setVisibility] = useState({
+    groups: true,
+    predictions: false,
+    results: false,
+    standings: false
+  });
+  
   
   // Estados de votaciones
   const [goals, setGoals] = useState([]);
@@ -62,7 +71,7 @@ const ChampionsLeagueApp = () => {
 
   // Cargar datos al iniciar
   useEffect(() => {
-    loadData();
+    loadAllData(); loadVisibilitySettings();
   }, []);
 
   // Inicializar sección correcta según el tipo de usuario
@@ -83,33 +92,126 @@ const ChampionsLeagueApp = () => {
     return assigned;
   };
 
-  // Función para cargar datos desde Firebase
-  const loadData = () => {
-    const dataRef = ref(database, 'championsData');
+  // Función para actualizar visibilidad (SOLO ADMIN)
+  const updateVisibility = async (key, value) => {
+    if (!isAdmin) return;
     
-    // Escuchar cambios en tiempo real
-    onValue(dataRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        console.log('📥 Cargando datos desde Firebase...');
-        console.log('📊 Total de predicciones cargadas:', Object.keys(data.predictions || {}).length);
-        Object.keys(data.predictions || {}).forEach(player => {
-          const predCount = Object.keys(data.predictions[player] || {}).length;
-          console.log(`  ${player}: ${predCount} predicción(es)`);
-        });
-        
-        setGroups(data.groups || {});
-        setMatches(data.matches || []);
-        setPredictions(data.predictions || {});
-        setUserPoints(data.userPoints || {});
-        setArrivals(data.arrivals || {});
-        setGoals(data.goals || []);
-        setVotes(data.votes || {});
-        setActiveVoting(data.activeVoting || null);
-        setVotingStartTime(data.votingStartTime || null);
-        console.log('✅ Datos cargados exitosamente desde Firebase');
+    try {
+      const newVisibility = { ...visibility, [key]: value };
+      await setDoc(doc(db, 'settings', 'visibility'), newVisibility, { merge: true });
+      setVisibility(newVisibility);
+      console.log('✅ Visibilidad actualizada:', key, value);
+    } catch (error) {
+      console.error('❌ Error al actualizar visibilidad:', error);
+      alert('Error al actualizar visibilidad');
+    }
+  };
+
+
+  // Función para cargar todos los datos desde Firestore
+  const loadAllData = async () => {
+    console.log('📥 Cargando datos desde Firestore...');
+    
+    try {
+      // Cargar grupos
+      const groupsSnapshot = await getDocs(collection(db, 'groups'));
+      const groupsData = {};
+      groupsSnapshot.forEach(doc => {
+        groupsData[doc.id] = doc.data().teams || [];
+      });
+      setGroups(groupsData);
+      console.log('✅ Grupos cargados:', Object.keys(groupsData).length);
+
+      // Cargar partidos
+      const matchesSnapshot = await getDocs(collection(db, 'matches'));
+      const matchesData = [];
+      matchesSnapshot.forEach(doc => {
+        matchesData.push({ ...doc.data(), id: doc.id });
+      });
+      setMatches(matchesData);
+      console.log('✅ Partidos cargados:', matchesData.length);
+
+      // Cargar predicciones
+      const predictionsSnapshot = await getDocs(collection(db, 'predictions'));
+      const predictionsData = {};
+      predictionsSnapshot.forEach(doc => {
+        const [userId, matchId] = doc.id.split('_');
+        if (!predictionsData[userId]) {
+          predictionsData[userId] = {};
+        }
+        predictionsData[userId][matchId] = doc.data();
+      });
+      setPredictions(predictionsData);
+      console.log('✅ Predicciones cargadas:', Object.keys(predictionsData).length);
+      Object.keys(predictionsData).forEach(player => {
+        const predCount = Object.keys(predictionsData[player] || {}).length;
+        console.log(`  📊 ${player}: ${predCount} predicción(es)`);
+      });
+
+      // Cargar puntos
+      const pointsSnapshot = await getDocs(collection(db, 'userPoints'));
+      const pointsData = {};
+      pointsSnapshot.forEach(doc => {
+        pointsData[doc.id] = doc.data().points || 0;
+      });
+      setUserPoints(pointsData);
+      console.log('✅ Puntos cargados:', Object.keys(pointsData).length);
+
+      // Cargar llegadas
+      const arrivalsSnapshot = await getDocs(collection(db, 'arrivals'));
+      const arrivalsData = {};
+      arrivalsSnapshot.forEach(doc => {
+        arrivalsData[doc.id] = doc.data();
+      });
+      setArrivals(arrivalsData);
+      console.log('✅ Llegadas cargadas:', Object.keys(arrivalsData).length);
+
+      // Cargar goles
+      const goalsSnapshot = await getDocs(collection(db, 'goals'));
+      const goalsData = [];
+      goalsSnapshot.forEach(doc => {
+        goalsData.push({ ...doc.data(), id: doc.id });
+      });
+      setGoals(goalsData);
+      console.log('✅ Goles cargados:', goalsData.length);
+
+      // Cargar votaciones
+      const votesSnapshot = await getDocs(collection(db, 'votes'));
+      const votesData = {};
+      votesSnapshot.forEach(doc => {
+        votesData[doc.id] = doc.data();
+      });
+      setVotes(votesData);
+      console.log('✅ Votos cargados:', Object.keys(votesData).length);
+
+      console.log('🎉 Todos los datos cargados exitosamente');
+
+    } catch (error) {
+      console.error('❌ Error al cargar datos:', error);
+      alert('Error al cargar datos desde Firebase. Verifica la configuración.');
+    }
+  };
+
+  // Función para cargar configuración de visibilidad
+  const loadVisibilitySettings = async () => {
+    try {
+      const visibilityDoc = await getDoc(doc(db, 'settings', 'visibility'));
+      if (visibilityDoc.exists()) {
+        setVisibility(visibilityDoc.data());
+        console.log('👁️ Configuración de visibilidad cargada:', visibilityDoc.data());
+      } else {
+        const defaultVisibility = {
+          groups: true,
+          predictions: false,
+          results: false,
+          standings: false
+        };
+        await setDoc(doc(db, 'settings', 'visibility'), defaultVisibility);
+        setVisibility(defaultVisibility);
       }
-    });
+    } catch (error) {
+      console.error('❌ Error al cargar visibilidad:', error);
+    }
   };
 
 // Función para guardar datos en Firebase
@@ -569,26 +671,63 @@ const saveData = async (updatedData = {}) => {
     return { total, details };
   };
 
-  // Predicción de usuario
+  // Función para guardar predicción - FIRESTORE CORRECTO
   const submitPrediction = async (matchId, winner, score1, score2, firstScorer) => {
-    console.log('🎯 Guardando predicción:', { matchId, winner, score1, score2, firstScorer });
-    console.log('👤 Usuario actual:', currentUser);
-    
+    console.log('🎯 Guardando predicción en Firestore...');
+    console.log('📝 Datos:', { matchId, winner, score1, score2, firstScorer, usuario: currentUser });
+
+    if (!currentUser) {
+      alert('Error: Usuario no identificado');
+      return;
+    }
+
     const match = matches.find(m => m.id === matchId);
     if (!match) {
       alert('Partido no encontrado');
       return;
     }
-    
+
     const timeElapsed = (Date.now() - match.enabledAt) / 1000 / 60;
-    
     if (timeElapsed > 3) {
       alert('El tiempo para predecir ha expirado');
       return;
     }
-    
-    // Crear copia de predicciones con la nueva predicción
-    const newPredictions = { ...predictions };
+
+    try {
+      // FORMATO CORRECTO: userId_matchId
+      const predictionId = `${currentUser}_${matchId}`;
+      const predictionRef = doc(db, 'predictions', predictionId);
+
+      const predictionData = {
+        userId: currentUser,
+        matchId: matchId,
+        winner: winner,
+        score1: parseInt(score1),
+        score2: parseInt(score2),
+        firstScorer: firstScorer,
+        timestamp: Date.now()
+      };
+
+      // USAR setDoc con merge (NO updateDoc)
+      await setDoc(predictionRef, predictionData, { merge: true });
+      
+      console.log('✅ Predicción guardada en Firestore:', predictionId);
+
+      // Actualizar estado local
+      const newPredictions = { ...predictions };
+      if (!newPredictions[currentUser]) {
+        newPredictions[currentUser] = {};
+      }
+      newPredictions[currentUser][matchId] = predictionData;
+      setPredictions(newPredictions);
+
+      alert('✅ Predicción guardada exitosamente');
+
+    } catch (error) {
+      console.error('❌ Error al guardar predicción:', error);
+      alert('Error al guardar predicción: ' + error.message);
+    }
+  };
     if (!newPredictions[currentUser]) {
       newPredictions[currentUser] = {};
     }
