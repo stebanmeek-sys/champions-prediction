@@ -19,21 +19,17 @@ const ChampionsLeagueApp = () => {
   const teams = [
   { team: 'Liverpool', player: 'Daniel Acero' },
   { team: 'Borussia Dortmund', player: 'Miguel Ochoa' },
-  { team: 'Chelsea', player: 'Santiago Belmonte' },
+  { team: 'Chelsea', player: 'Jero Martinez' }, 
   { team: 'FC Barcelona', player: 'Andrés Villamizar' },
-  { team: 'Newcastle United', player: 'Julian Barajas' },
   { team: 'Manchester City', player: 'Santiago Bernal' },
   { team: 'Atlético de Madrid', player: 'Sergio Sanchez' },
-  { team: 'Arsenal', player: 'Juan Pablo Peña' },
-  { team: 'AS Roma', player: 'Fabian Murillo' },
-  { team: 'PSG', player: 'Felipe Cantor' },
-  { team: 'Real Madrid', player: 'Juan Pa Villegas' },
+  { team: 'Arsenal', player: 'Fabian Murillo' }, 
+  { team: 'PSG', player: 'Daniel Alzate' }, 
+  { team: 'Real Madrid', player: 'German Meek' }, 
   { team: 'Tottenham Hotspurs', player: 'Felipe Murillo' },
-  { team: 'Inter de Milan', player: 'Camilo Figueroa' },
+  { team: 'Inter de Milan', player: 'Julian Vallejo' }, 
   { team: 'AC Milan', player: 'Nayo Pardo' },
   { team: 'Bayern Munich', player: 'Steban Meek' },
-  { team: 'Manchester United', player: 'German Meek' },
-  { team: 'SSC Napoli', player: 'Daniel Alzate' },
   { team: 'Juventus', player: 'JP Garzon' }
   ];
 
